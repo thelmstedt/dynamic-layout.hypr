@@ -128,6 +128,23 @@ return {
         end
     end,
 
+    ["three-column tracks its row independently of swaps and other workspaces"] = function ()
+        local ids = { "master", "left1", "right1", "left2", "right2" }
+        local state, other = three_col.new_state(), three_col.new_state()
+        local context = { reflect = false }
+        a.equal(three_col.focus_neighbor(state, ids, "left2", "r", context), "master")
+        three_col.focus_changed(state, "master", ids)
+        a.equal(three_col.neighbor(ids, "master", "r", context), "right1")
+        a.equal(three_col.focus_neighbor(other, ids, "master", "r", context), "right1")
+        a.equal(three_col.focus_neighbor(state, ids, "master", "r", context), "right2")
+        local short = { "master", "left1", "right1", "left2" }
+        a.equal(three_col.focus_neighbor(state, short, "left2", "r", context), "master")
+        a.equal(three_col.focus_neighbor(state, short, "master", "r", context), "right1")
+        three_col.focus_neighbor(state, ids, "left2", "r", context)
+        three_col.focus_changed(state, "left1", ids)
+        a.equal(three_col.focus_neighbor(state, ids, "master", "r", context), "right1")
+    end,
+
     ["three-column fills the area as windows are added and removed"] = function ()
         local ctx = { area = { x = 10, y = 20, w = 1200, h = 600 } }
         function ctx:split(area, side, ratio)

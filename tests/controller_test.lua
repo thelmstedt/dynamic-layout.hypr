@@ -15,6 +15,53 @@ local function engine()
 end
 
 return {
+  ["three-column row survives resizing and reflection while reset restores the first row"] = function()
+    for _, command in ipairs({ "grow", "shrink", "ratio 0.6", "reflect", "reset", "swapnext" }) do
+      local env = fixture.engine(5)
+      local layout = env.controller
+      layout.definition.layout_msg(env.context, "three_col")
+      fixture.focus(env, 4)
+      layout.move_direction("r")
+      fixture.focus(env, 1)
+      a.equal(layout.definition.layout_msg(env.context, command), true)
+      layout.move_direction("r")
+      local expected = ({ reflect = 4, reset = 3, swapnext = 2 })[command] or 5
+      a.equal(env.dispatched[#env.dispatched].window, "address:window" .. expected)
+    end
+  end,
+
+  ["three-column focus preserves rows through the master in both directions"] = function()
+    for _, reflected in ipairs({ false, true }) do
+      local env = fixture.engine(5)
+      env.controller.definition.layout_msg(env.context, "three_col")
+      env.ws.reflect = reflected
+      local function move(direction, expected)
+        env.controller.move_direction(direction)
+        a.equal(env.dispatched[#env.dispatched].window, "address:window" .. expected)
+        fixture.focus(env, expected)
+        a.equal(table.concat(env.ws.order, ","), "1,2,3,4,5")
+      end
+      local right, left = reflected and "l" or "r", reflected and "r" or "l"
+      for _, row in ipairs({ { 2, 3 }, { 4, 5 } }) do
+        fixture.focus(env, row[1])
+        move(right, 1)
+        move(right, row[2])
+        move(left, 1)
+        move(left, row[1])
+        move(right, 1)
+        move(left, row[1])
+      end
+      move(right, 1)
+      fixture.focus(env, 2)
+      fixture.focus(env, 1)
+      move(right, 3)
+      -- Mouse/external focus on a lower side window establishes the row too.
+      fixture.focus(env, 4)
+      fixture.focus(env, 1)
+      move(right, 5)
+    end
+  end,
+
   ["directional focus follows swap neighbors without reordering"] = function()
     local env = engine()
     local layout = env.controller

@@ -147,6 +147,7 @@ function Engine.register(options)
         local id = util.field(window, "stable_id")
         id = id and tostring(id)
         if ws and util.index_of(ws.order, id) and is_managed_layout(window) then
+            ws.active_layout.focus_changed(ws.layout_state[ws.active_layout.name], id, ws.order)
             ws.selected_id = id
             if ws.active_layout.needs_focus_recalculate then
                 hl.dispatch(hl.dsp.layout("focusactive"))
@@ -234,7 +235,10 @@ function Engine.register(options)
 
         local id = util.field(window, "stable_id")
         local context = { active_id = id and tostring(id), order = ws.order, reflect = ws.reflect }
-        local neighbor = ws.active_layout.neighbor(ws.order, context.active_id, direction, context)
+        local strategy = ws.active_layout
+        local neighbor = strategy.focus_neighbor(
+            ws.layout_state[strategy.name], ws.order, context.active_id, direction, context
+        )
         local address = neighbor and ws.addresses[neighbor]
         if address then hl.dispatch(hl.dsp.focus({ window = "address:" .. address })) end
     end

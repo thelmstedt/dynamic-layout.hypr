@@ -27,6 +27,14 @@ function M.neighbor(ids, active_id, direction)
     if direction == "r" or direction == "d" then return ids[index + 1] end
 end
 
+function M.focus_neighbor(_, ids, active_id, direction)
+    return M.neighbor(ids, active_id, direction)
+end
+
+function M.focus_changed()
+    -- This strategy has no navigation history.
+end
+
 function M.handle(_, command)
     if command == "focusactive" then
         return true

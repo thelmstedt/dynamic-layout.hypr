@@ -60,7 +60,7 @@ function M.hyprland()
     return env
 end
 
-function M.engine()
+function M.engine(window_count)
     local env = M.hyprland()
     env.state_path, env.status_path = M.path("settings"), M.path("status")
     env.controller = Engine.register({
@@ -72,7 +72,7 @@ function M.engine()
     env.controller.definition.layout_msg(env.empty, "fullscreen")
     env.context = { area = env.empty.area, targets = {} }
     env.boxes = {}
-    for i = 1, 3 do
+    for i = 1, window_count or 3 do
         local window = {
             workspace = { id = 10 },
             stable_id = i,

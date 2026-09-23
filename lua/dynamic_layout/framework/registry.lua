@@ -10,6 +10,8 @@ local Registry = {}
 ---@field label                    fun(state: table): string
 ---@field restore_label            fun(state: table, label: string?): boolean
 ---@field neighbor                 fun(ids: string[], active_id: string, direction: "l" | "r" | "u" | "d", context: LayoutContext): string?
+---@field focus_neighbor           fun(state: table, ids: string[], active_id: string, direction: "l" | "r" | "u" | "d", context: LayoutContext): string?
+---@field focus_changed            fun(state: table, active_id: string?, ids: string[])
 ---@field handle                   fun(state: table, command: string, arg: string, ctx: HL.LayoutContext, context: LayoutContext): boolean
 ---@field place                    fun(ctx: HL.LayoutContext, targets: table<string, HL.LayoutTarget>, ids: string[], state: table, context: LayoutContext)
 
@@ -24,7 +26,9 @@ local function validate(strategy, index)
         "restore_label",
         "place",
         "handle",
-        "neighbor"
+        "neighbor",
+        "focus_neighbor",
+        "focus_changed"
     }) do
         assert(type(strategy[method]) == "function", name .. "." .. method .. " must be a function")
     end

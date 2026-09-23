@@ -8,7 +8,7 @@ M.commands = { "three_col" }
 M.messages = { "three_col", "ratio <0.1..0.9>", "grow", "shrink" }
 
 function M.new_state()
-    return { ratio = 1 / 3 }
+    return { ratio = 1 / 3, focus_row = 1 }
 end
 
 function M.label(state)
@@ -43,6 +43,26 @@ function M.neighbor(ids, active_id, direction, layout_context)
     local step = direction == "u" and -2 or 2
     local neighbor_index = index + step
     return neighbor_index >= 2 and ids[neighbor_index] or nil
+end
+
+-- The master spans every row, so entering it preserves the last side row.
+function M.focus_changed(state, active_id, ids)
+    local index = util.index_of(ids, active_id)
+    if index and index > 1 then state.focus_row = math.floor(index / 2) end
+end
+
+function M.focus_neighbor(state, ids, active_id, direction, context)
+    M.focus_changed(state, active_id, ids)
+    if active_id ~= ids[1] then return M.neighbor(ids, active_id, direction, context) end
+
+    local neighbor
+    for i = 2, #ids do
+        if side_for_index(i, context.reflect) == direction then
+            neighbor = ids[i]
+            if math.floor(i / 2) >= state.focus_row then break end
+        end
+    end
+    return neighbor
 end
 
 function M.handle(state, command, arg, _, layout_context)

@@ -20,6 +20,14 @@ function M.restore_label(state, label)
     return util.restore_ratio_label(state, label, "TALL")
 end
 
+function M.focus_neighbor(_, ids, active_id, direction, context)
+    return M.neighbor(ids, active_id, direction, context)
+end
+
+function M.focus_changed()
+    -- This strategy has no navigation history.
+end
+
 function M.handle(state, command, arg, _, layout_context)
     return util.handle_ratio(state, command, arg, layout_context)
 end
