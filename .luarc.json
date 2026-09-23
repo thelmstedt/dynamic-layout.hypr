@@ -1,0 +1,10 @@
+{
+  "runtime": {
+    "version": "Lua 5.4",
+    "path": ["lua/?.lua", "lua/?/init.lua"]
+  },
+  "workspace": {
+    "library": ["/usr/share/hypr/stubs"],
+    "checkThirdParty": false
+  }
+}
