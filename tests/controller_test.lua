@@ -15,6 +15,53 @@ local function engine()
 end
 
 return {
+  ["directional focus follows swap neighbors without reordering"] = function()
+    local env = engine()
+    local layout = env.controller
+    for _, name in ipairs({ "fullscreen", "tall", "wide", "three_col" }) do
+      layout.definition.layout_msg(env.context, name)
+      for _, reflected in ipairs({ false, true }) do
+        env.ws.reflect = reflected
+        for index = 1, 3 do
+          fixture.focus(env, index)
+          for _, direction in ipairs({ "l", "r", "u", "d" }) do
+            local before = #env.dispatched
+            layout.move_direction(direction)
+            local focus = env.dispatched[before + 1]
+            layout.swap_direction(direction)
+            local destination
+            for slot, id in ipairs(env.ws.order) do
+              if id == tostring(index) and slot ~= index then destination = slot end
+            end
+            if destination then
+              a.equal(focus.window, "address:window" .. destination)
+            else
+              a.equal(focus, nil)
+            end
+            -- Undo the swap to check each direction from the same order.
+            if destination then
+              env.ws.order[index], env.ws.order[destination] = env.ws.order[destination], env.ws.order[index]
+            end
+          end
+        end
+      end
+    end
+  end,
+
+  ["directional focus falls back outside managed tiled windows"] = function()
+    local env = engine()
+    env.controller.move_direction("l")
+    a.equal(env.dispatched[#env.dispatched].direction, "l")
+    fixture.focus(env, 1)
+    env.active_window.floating = true
+    env.controller.move_direction("r")
+    a.equal(env.dispatched[#env.dispatched].direction, "r")
+    env.active_window.floating = false
+    env.active_window.layout.name = "other"
+    env.controller.move_direction("u")
+    a.equal(env.dispatched[#env.dispatched].direction, "u")
+  end,
+
   ["resize and reset callbacks operate on workspace settings"] = function()
     local env = engine()
     local layout = env.controller

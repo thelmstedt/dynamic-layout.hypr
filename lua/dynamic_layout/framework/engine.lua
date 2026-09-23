@@ -222,6 +222,23 @@ function Engine.register(options)
         end
     end
 
+    --- Move focus using the same neighbors as directional swapping.
+    ---@param direction "l" | "r" | "u" | "d"
+    function controller.move_direction(direction)
+        local window = hl.get_active_window()
+        local ws = Store.workspace_for_window(store, window)
+        if not ws or not is_managed_layout(window) then
+            hl.dispatch(hl.dsp.focus({ direction = direction }))
+            return
+        end
+
+        local id = util.field(window, "stable_id")
+        local context = { active_id = id and tostring(id), order = ws.order, reflect = ws.reflect }
+        local neighbor = ws.active_layout.neighbor(ws.order, context.active_id, direction, context)
+        local address = neighbor and ws.addresses[neighbor]
+        if address then hl.dispatch(hl.dsp.focus({ window = "address:" .. address })) end
+    end
+
     ---@param direction "l" | "r" | "u" | "d"
     function controller.swap_direction(direction)
         hl.dispatch(hl.dsp.layout("swapdirection " .. direction))
@@ -251,6 +268,7 @@ end
 ---@field set_ratio        fun(ratio: number)
 ---@field cycle_focus      fun(next: boolean)
 ---@field swap_active      fun(next: boolean)
+---@field move_direction   fun(direction: "l" | "r" | "u" | "d")
 ---@field swap_direction   fun(direction: "l" | "r" | "u" | "d")
 
 return Engine

@@ -45,17 +45,18 @@ hl.bind(mainMod .. " + SHIFT + Tab", layout.focus_prev)
 hl.bind(mainMod .. " + bracketleft", layout.focus_prev)
 hl.bind(mainMod .. " + SHIFT + bracketleft", layout.swap_prev)
 
--- Swap windows by direction.
+-- move/swap windows by direction.
+hl.bind(mainMod .. " + left", function() layout.move_direction("l") end)
+hl.bind(mainMod .. " + right", function() layout.move_direction("r") end)
+hl.bind(mainMod .. " + up", function() layout.move_direction("u") end)
+hl.bind(mainMod .. " + down", function() layout.move_direction("d") end)
+
 hl.bind(mainMod .. " + SHIFT + left", function() layout.swap_direction("l") end)
 hl.bind(mainMod .. " + SHIFT + right", function() layout.swap_direction("r") end)
 hl.bind(mainMod .. " + SHIFT + up", function() layout.swap_direction("u") end)
 hl.bind(mainMod .. " + SHIFT + down", function() layout.swap_direction("d") end)
 
--- Directional focus uses Hyprland's normal focus dispatcher.
-hl.bind(mainMod .. " + left", hl.dsp.focus({ direction = "l" }))
-hl.bind(mainMod .. " + right", hl.dsp.focus({ direction = "r" }))
-hl.bind(mainMod .. " + up", hl.dsp.focus({ direction = "u" }))
-hl.bind(mainMod .. " + down", hl.dsp.focus({ direction = "d" }))
+
 
 -- floating
 hl.bind(mainMod .. " + T", function () hl.dispatch(hl.dsp.window.float({ action = "set" })) end)
