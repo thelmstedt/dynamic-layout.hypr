@@ -11,6 +11,22 @@ function M.near(actual, expected)
     )
 end
 
+function M.box(actual, expected)
+    for _, field in ipairs({ "x", "y", "w", "h" }) do
+        M.near(actual[field], expected[field])
+    end
+end
+
+function M.dispatch(actual, kind, options)
+    M.equal(actual.kind, kind)
+    if type(options) == "table" then
+        for key, value in pairs(options) do M.equal(actual.options[key], value) end
+        for key, value in pairs(actual.options) do M.equal(value, options[key]) end
+    else
+        M.equal(actual.options, options)
+    end
+end
+
 function M.read(path)
     local file = assert(io.open(path))
     local content = file:read("*a")

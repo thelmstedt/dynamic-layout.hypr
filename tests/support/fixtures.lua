@@ -35,6 +35,9 @@ end
 
 function M.hyprland()
     local env = { registered = {}, hooks = {}, dispatched = {}, windows = {}, focused_workspace = { id = 10 } }
+    local function dispatcher(kind)
+        return function (options) return { kind = kind, options = options } end
+    end
     ---@diagnostic disable-next-line: missing-fields
     _G.hl = {
         layout = {
@@ -52,9 +55,9 @@ function M.hyprland()
         get_active_workspace = function () return env.focused_workspace end,
         get_windows = function () return env.windows end,
         dsp = {
-            layout = function (message) return message end,
-            focus = function (options) return options end,
-            window = { cycle_next = function (options) return options end }
+            layout = dispatcher("layout"),
+            focus = dispatcher("focus"),
+            window = { cycle_next = dispatcher("window.cycle_next") }
         }
     }
     return env

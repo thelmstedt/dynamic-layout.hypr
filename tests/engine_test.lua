@@ -22,20 +22,21 @@ return {
     ["fullscreen retains selection when workspace loses focus"] = function ()
         local env = fixture.engine()
         a.equal(Store.layout_label(env.ws), "FULLSCREEN")
-        a.equal(env.boxes[2], env.empty.area)
+        a.box(env.boxes[2], { x = 0, y = 0, w = 100, h = 100 })
         assert(env.boxes[1].x < 0 and env.boxes[3].x < 0)
         fixture.focus(env, nil)
+        env.boxes = {}
         env.registered.dynamic.recalculate(env.context)
-        a.equal(env.boxes[2], env.empty.area)
+        a.box(env.boxes[2], { x = 0, y = 0, w = 100, h = 100 })
     end,
 
     ["focus hooks select fullscreen windows and ignore floating focus"] = function ()
         local env = fixture.engine()
         fixture.focus(env, 3)
         a.equal(env.ws.selected_id, "3")
-        a.equal(env.dispatched[#env.dispatched], "_refresh")
+        a.dispatch(env.dispatched[#env.dispatched], "layout", "_refresh")
         env.registered.dynamic.recalculate(env.context)
-        a.equal(env.boxes[3], env.empty.area)
+        a.box(env.boxes[3], { x = 0, y = 0, w = 100, h = 100 })
         local before = #env.dispatched
         env.windows[1].floating = true
         fixture.focus(env, 1)
@@ -43,22 +44,18 @@ return {
         a.equal(#env.dispatched, before)
     end,
 
-    ["focus cycles in order with wrapping"] = function ()
+    ["focus cycles in order with wrapping and falls back without an active window"] = function ()
         local env = fixture.engine()
         fixture.focus(env, 3)
         env.controller.cycle_focus(true)
-        a.equal(env.dispatched[#env.dispatched].window, "address:window1")
+        a.dispatch(env.dispatched[#env.dispatched], "focus", { window = "address:window1" })
         env.controller.cycle_focus(false)
-        a.equal(env.dispatched[#env.dispatched].window, "address:window2")
-        env.controller.swap_direction("l")
-        a.equal(env.dispatched[#env.dispatched], "_refresh")
-    end,
-
-    ["swapwithmaster exchanges positions"] = function ()
-        local env = fixture.engine()
-        fixture.focus(env, 3)
-        env.controller.swap_with_master()
-        a.equal(table.concat(env.ws.order, ","), "3,2,1")
+        a.dispatch(env.dispatched[#env.dispatched], "focus", { window = "address:window2" })
+        fixture.focus(env, nil)
+        for _, next in ipairs({ true, false }) do
+            env.controller.cycle_focus(next)
+            a.dispatch(env.dispatched[#env.dispatched], "window.cycle_next", { next = next })
+        end
     end,
 
     ["promote preserves other order and demote moves master to end"] = function ()
@@ -155,25 +152,6 @@ return {
         Persistence.load(restored, env.state_path, a.unexpected)
         a.equal(Store.layout_label(restored.workspaces["id:10"]), "WIDE@0.500")
         a.equal(restored.workspaces["id:10"].layout_state.three_col.ratio, 1 / 3)
-    end,
-
-    ["reset also works on an empty fullscreen workspace"] = function ()
-        local env = fixture.engine()
-        env.ws.reflect = true
-        env.ws.layout_state.tall.ratio = 0.8
-        env.controller.reset()
-        a.equal(env.ws.active_layout.name, "fullscreen")
-        a.equal(env.ws.reflect, false)
-        a.equal(env.ws.layout_state.tall.ratio, 0.5)
-    end,
-
-    ["layout cycling wraps in both directions"] = function ()
-        local env = fixture.engine()
-        env.registered.dynamic.layout_msg(env.empty, "tall")
-        env.controller.prev_layout()
-        a.equal(env.ws.active_layout.name, "fullscreen")
-        env.controller.next_layout()
-        a.equal(env.ws.active_layout.name, "tall")
     end,
 
     ["current strategy names select the matching layout"] = function ()

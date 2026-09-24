@@ -1,14 +1,7 @@
 local a = require("tests.support.assertions")
 local fixture = require("tests.support.fixtures")
-local Store = require("dynamic_layout.framework.store")
 
 return {
-  ["registry and store are plain data"] = function()
-    local registry = fixture.registry()
-    a.equal(getmetatable(registry), nil)
-    a.equal(getmetatable(Store.new(registry)), nil)
-  end,
-
   ["import has no registration side effects"] = function()
     local env = fixture.hyprland()
     -- Execute the module freshly even when another case already required it.

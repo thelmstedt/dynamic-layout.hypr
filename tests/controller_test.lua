@@ -1,14 +1,14 @@
 local a = require("tests.support.assertions")
 local fixture = require("tests.support.fixtures")
 
-local function engine()
-  local env = fixture.engine()
+local function engine(window_count)
+  local env = fixture.engine(window_count)
   -- Refresh is the only layout message emitted by controller operations.
   hl.dispatch = function(message)
     env.dispatched[#env.dispatched + 1] = message
-    if type(message) == "string" then
-      a.equal(message, "_refresh")
-      a.equal(env.registered.dynamic.layout_msg(env.context, message), true)
+    if message.kind == "layout" then
+      a.dispatch(message, "layout", "_refresh")
+      a.equal(env.registered.dynamic.layout_msg(env.context, message.options), true)
     end
   end
   return env
@@ -21,7 +21,7 @@ return {
     fixture.focus(env, 1)
     local refreshes = 0
     hl.dispatch = function(message)
-      a.equal(message, "_refresh")
+      a.dispatch(message, "layout", "_refresh")
       refreshes = refreshes + 1
       a.near(env.ws.layout_state.tall.ratio, 0.47)
       assert(a.read(env.state_path):find("TALL@0.470", 1, true))
@@ -38,7 +38,7 @@ return {
     a.equal(table.concat(env.ws.order, ","), "3,1,2")
     env.registered.dynamic.recalculate(env.context)
     a.equal(table.concat(env.ws.order, ","), "3,1,2")
-    a.equal(env.boxes[3], env.empty.area)
+    a.box(env.boxes[3], { x = 0, y = 0, w = 100, h = 100 })
   end,
 
   ["controller creates state for an empty focused workspace"] = function()
@@ -49,7 +49,7 @@ return {
     local ws = env.store.workspaces["id:99"]
     a.near(ws.layout_state.tall.ratio, 0.47)
     a.equal(env.ws.active_layout.name, "fullscreen")
-    a.equal(env.dispatched[#env.dispatched], "_refresh")
+    a.dispatch(env.dispatched[#env.dispatched], "layout", "_refresh")
   end,
 
   ["three-column row survives resizing and reflection while reset restores the first row"] = function()
@@ -65,7 +65,7 @@ return {
       else layout[command]() end
       layout.move_direction("r")
       local expected = ({ reflect = 4, reset = 3, swapnext = 2 })[command] or 5
-      a.equal(env.dispatched[#env.dispatched].window, "address:window" .. expected)
+      a.dispatch(env.dispatched[#env.dispatched], "focus", { window = "address:window" .. expected })
     end
   end,
 
@@ -76,7 +76,7 @@ return {
       env.ws.reflect = reflected
       local function move(direction, expected)
         env.controller.move_direction(direction)
-        a.equal(env.dispatched[#env.dispatched].window, "address:window" .. expected)
+        a.dispatch(env.dispatched[#env.dispatched], "focus", { window = "address:window" .. expected })
         fixture.focus(env, expected)
         a.equal(table.concat(env.ws.order, ","), "1,2,3,4,5")
       end
@@ -114,13 +114,14 @@ return {
             local before = #env.dispatched
             layout.move_direction(direction)
             local focus = env.dispatched[before + 1]
+            a.equal(table.concat(env.ws.order, ","), "1,2,3")
             layout.swap_direction(direction)
             local destination
             for slot, id in ipairs(env.ws.order) do
               if id == tostring(index) and slot ~= index then destination = slot end
             end
             if destination then
-              a.equal(focus.window, "address:window" .. destination)
+              a.dispatch(focus, "focus", { window = "address:window" .. destination })
             else
               a.equal(focus, nil)
             end
@@ -137,15 +138,15 @@ return {
   ["directional focus falls back outside managed tiled windows"] = function()
     local env = engine()
     env.controller.move_direction("l")
-    a.equal(env.dispatched[#env.dispatched].direction, "l")
+    a.dispatch(env.dispatched[#env.dispatched], "focus", { direction = "l" })
     fixture.focus(env, 1)
     env.active_window.floating = true
     env.controller.move_direction("r")
-    a.equal(env.dispatched[#env.dispatched].direction, "r")
+    a.dispatch(env.dispatched[#env.dispatched], "focus", { direction = "r" })
     env.active_window.floating = false
     env.active_window.layout.name = "other"
     env.controller.move_direction("u")
-    a.equal(env.dispatched[#env.dispatched].direction, "u")
+    a.dispatch(env.dispatched[#env.dispatched], "focus", { direction = "u" })
   end,
 
   ["resize and reset callbacks operate on workspace settings"] = function()
@@ -187,18 +188,26 @@ return {
   end,
 
   ["callbacks dispatch without an active window on empty workspaces"] = function()
-    local env = engine()
-    env.context = env.empty
-    env.active_window = nil
+    local env = engine(0)
+    a.equal(#env.windows, 0)
+    a.equal(#env.ws.order, 0)
+    a.equal(env.active_window, nil)
     env.ws.reflect = true
+    env.ws.layout_state.tall.ratio = 0.8
     env.ws.layout_state.wide.ratio = 0.8
     env.controller.reset()
+    a.equal(env.ws.active_layout.name, "fullscreen")
+    a.near(env.ws.layout_state.tall.ratio, 0.5)
     a.equal(env.ws.reflect, false)
     a.near(env.ws.layout_state.wide.ratio, 0.5)
     env.controller.reflect()
     a.equal(env.ws.reflect, true)
     env.controller.next_layout()
     a.equal(env.ws.active_layout.name, "tall")
+    a.equal(#env.dispatched, 3)
+    for _, message in ipairs(env.dispatched) do
+      a.dispatch(message, "layout", "_refresh")
+    end
   end,
 
   ["invalid ratios fail before dispatch"] = function()
