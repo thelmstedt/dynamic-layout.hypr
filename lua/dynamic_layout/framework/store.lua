@@ -78,8 +78,8 @@ function Store.context_key(ctx, fallback_workspace)
     return Store.workspace_key(fallback_workspace)
 end
 
-function Store.workspace(store, ctx, fallback_workspace)
-    local key = Store.context_key(ctx, fallback_workspace)
+function Store.for_workspace(store, workspace)
+    local key = Store.workspace_key(workspace)
     if not key then return nil end
     local ws = store.workspaces[key]
     if not ws then
@@ -88,6 +88,10 @@ function Store.workspace(store, ctx, fallback_workspace)
     end
 
     return ws
+end
+
+function Store.workspace(store, ctx, fallback_workspace)
+    return Store.for_workspace(store, Store.context_key(ctx, fallback_workspace))
 end
 
 function Store.layout_label(ws)
@@ -147,8 +151,7 @@ function Store.sync_order(ctx, ws)
     return targets
 end
 
-function Store.promote_active(ctx, ws)
-    local id = Store.active_id(ctx, ws)
+function Store.promote_active(ws, id)
     local i = id and util.index_of(ws.order, id)
     if not i then
         return
@@ -158,8 +161,7 @@ function Store.promote_active(ctx, ws)
     table.insert(ws.order, 1, id)
 end
 
-function Store.swap_active(ctx, ws, next)
-    local id = Store.active_id(ctx, ws)
+function Store.swap_active(ws, id, next)
     local i = id and util.index_of(ws.order, id)
     if not i or #ws.order < 2 then
         return
@@ -175,8 +177,7 @@ function Store.swap_active(ctx, ws, next)
     ws.order[i], ws.order[target] = ws.order[target], ws.order[i]
 end
 
-function Store.demote_active(ctx, ws)
-    local id = Store.active_id(ctx, ws)
+function Store.demote_active(ws, id)
     local i = id and util.index_of(ws.order, id)
     if not i or i ~= 1 or #ws.order < 2 then
         return
@@ -186,8 +187,7 @@ function Store.demote_active(ctx, ws)
     table.insert(ws.order, id)
 end
 
-function Store.swap_active_with(ctx, ws, target_id_value)
-    local active = Store.active_id(ctx, ws)
+function Store.swap_active_with(ws, active, target_id_value)
     local active_index = active and util.index_of(ws.order, active)
     local target_index = target_id_value and util.index_of(ws.order, target_id_value)
     if not active_index or not target_index then

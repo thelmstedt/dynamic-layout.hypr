@@ -5,7 +5,6 @@ local M = {}
 M.name = "fullscreen"
 
 M.commands = { "fullscreen", "full" }
-M.messages = { "fullscreen", "full" }
 M.needs_focus_recalculate = true
 
 function M.new_state()
@@ -35,12 +34,12 @@ function M.focus_changed()
     -- This strategy has no navigation history.
 end
 
-function M.handle(_, command)
-    if command == "focusactive" then
-        return true
-    end
+function M.resize()
+    -- Fullscreen has no adjustable split.
+end
 
-    return false
+function M.set_ratio()
+    -- Fullscreen has no adjustable split.
 end
 
 function M.place(ctx, targets, ids, _, layout_context)

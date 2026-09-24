@@ -36,8 +36,11 @@ return {
     end
     local controller = require("dynamic_layout").setup()
     a.equal(controller.name, "dynamic")
-    a.equal(#controller.store.registry.layouts, 4)
-    a.equal(env.registered.dynamic, controller.definition)
+    a.equal(type(env.registered.dynamic.recalculate), "function")
+    a.equal(type(env.registered.dynamic.layout_msg), "function")
+    for _, field in ipairs({ "store", "definition", "publish" }) do
+      a.equal(controller[field], nil)
+    end
     a.equal(a.read(state_root .. "/dynamic-layout.hypr/settings"):sub(1, 1), "#")
     a.equal(a.read(state_root .. "/dynamic-layout.hypr/status"), "")
     a.write(state_root .. "/dynamic-layout.hypr/status", "stale addresses")

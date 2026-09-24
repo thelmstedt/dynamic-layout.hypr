@@ -47,6 +47,7 @@ hl.bind("SUPER + SHIFT + down", function() layout.swap_direction("d") end)
 
 See [examples/hyprland.lua](examples/hyprland.lua) for a more complete setup
 
+
 ## Anti-features
 
 We lose 
@@ -92,4 +93,3 @@ and runs the layout regression tests with a mocked Hyprland API.
 Requires Lua 5.4 (`lua` and `luac`), `lua-language-server`, and Hyprland's Lua
 stubs. The stub location defaults to `/usr/share/hypr/stubs` in `.luarc.json`;
 adjust it if your installation uses another location.
-

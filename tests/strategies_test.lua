@@ -88,12 +88,12 @@ return {
     ["grow and shrink resize the focused side"] = function ()
         local state = { ratio = 0.5 }
         local context = { active_id = "master", order = { "master", "stack" }, reflect = false }
-        util.handle_ratio(state, "grow", "", context)
+        util.resize_ratio(state, 0.03, context)
         a.near(state.ratio, 0.53)
         context.active_id = "stack"
-        util.handle_ratio(state, "grow", "", context)
+        util.resize_ratio(state, 0.03, context)
         a.near(state.ratio, 0.5)
-        util.handle_ratio(state, "shrink", "", context)
+        util.resize_ratio(state, -0.03, context)
         a.near(state.ratio, 0.53)
     end,
 

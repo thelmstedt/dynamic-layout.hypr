@@ -9,31 +9,14 @@ function M.clamp(x, min, max)
     return math.max(min, math.min(max, x))
 end
 
----@param state           { ratio: number }
----@param command         string
----@param arg             string
----@param layout_context? LayoutContext
----@return boolean
-function M.handle_ratio(state, command, arg, layout_context)
-    if command == "ratio" then
-        state.ratio = M.clamp(tonumber(arg) or state.ratio, 0.1, 0.9)
-        return true
-    end
+function M.set_ratio(state, ratio)
+    state.ratio = M.clamp(ratio, 0.1, 0.9)
+end
 
-    if command ~= "grow" and command ~= "shrink" then
-        return false
-    end
-
-    local active_id = layout_context and layout_context.active_id
-    local master_id = layout_context and layout_context.order[1]
-    local focused_is_master = active_id == nil or master_id == nil or active_id == master_id
-    local delta = command == "grow" and 0.03 or -0.03
-    if not focused_is_master then
-        delta = -delta
-    end
-
-    state.ratio = M.clamp(state.ratio + delta, 0.1, 0.9)
-    return true
+function M.resize_ratio(state, delta, context)
+    local active_id, master_id = context.active_id, context.order[1]
+    if active_id and master_id and active_id ~= master_id then delta = -delta end
+    M.set_ratio(state, state.ratio + delta)
 end
 
 ---@param name  string

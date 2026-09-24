@@ -3,7 +3,6 @@ local Registry = {}
 ---@class LayoutStrategy
 ---@field name                     string                                                                                                                   Stable strategy identifier.
 ---@field commands                 string[]                                                                                                                 Hyprland messages that select this strategy.
----@field messages                 string[]                                                                                                                 Human-readable strategy-specific messages.
 ---@field default?                 boolean                                                                                                                  Whether this is the initial strategy.
 ---@field needs_focus_recalculate? boolean                                                                                                                  Whether focus changes require placement.
 ---@field new_state                fun(): table
@@ -12,20 +11,21 @@ local Registry = {}
 ---@field neighbor                 fun(ids: string[], active_id: string, direction: "l" | "r" | "u" | "d", context: LayoutContext): string?
 ---@field focus_neighbor           fun(state: table, ids: string[], active_id: string, direction: "l" | "r" | "u" | "d", context: LayoutContext): string?
 ---@field focus_changed            fun(state: table, active_id: string?, ids: string[])
----@field handle                   fun(state: table, command: string, arg: string, ctx: HL.LayoutContext, context: LayoutContext): boolean
+---@field resize                   fun(state: table, delta: number, context: LayoutContext)
+---@field set_ratio                fun(state: table, ratio: number)
 ---@field place                    fun(ctx: HL.LayoutContext, targets: table<string, HL.LayoutTarget>, ids: string[], state: table, context: LayoutContext)
 
 local function validate(strategy, index)
     local name = "strategies[" .. tostring(index) .. "]"
     assert(type(strategy) == "table", name .. " must be a table")
     assert(type(strategy.commands) == "table", name .. ".commands must be a table")
-    assert(type(strategy.messages) == "table", name .. ".messages must be a table")
     for _, method in ipairs({
         "new_state",
         "label",
         "restore_label",
         "place",
-        "handle",
+        "resize",
+        "set_ratio",
         "neighbor",
         "focus_neighbor",
         "focus_changed"
@@ -39,7 +39,7 @@ end
 function Registry.new(strategies)
     assert(type(strategies) == "table" and #strategies > 0, "at least one layout strategy is required")
 
-    local instance = { layouts = strategies, commands = {}, by_name = {}, messages = {}, default_layout = nil }
+    local instance = { layouts = strategies, commands = {}, by_name = {}, commands_list = {}, default_layout = nil }
 
     for index, strategy in ipairs(strategies) do
         validate(strategy, index)
@@ -51,9 +51,7 @@ function Registry.new(strategies)
         for _, command in ipairs(strategy.commands) do
             assert(instance.commands[command] == nil, "duplicate layout command: " .. command)
             instance.commands[command] = strategy
-        end
-        for _, message in ipairs(strategy.messages) do
-            table.insert(instance.messages, message)
+            table.insert(instance.commands_list, command)
         end
     end
 
@@ -65,7 +63,7 @@ end
 ---@field by_name        table<string, LayoutStrategy>
 ---@field layouts        LayoutStrategy[]
 ---@field commands       table<string, LayoutStrategy>
----@field messages       string[]
+---@field commands_list  string[]
 ---@field default_layout LayoutStrategy
 
 return Registry

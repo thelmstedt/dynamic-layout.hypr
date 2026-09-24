@@ -3,27 +3,66 @@ local fixture = require("tests.support.fixtures")
 
 local function engine()
   local env = fixture.engine()
-  -- Emulate dispatch to the registered provider. This checks that controller
-  -- callbacks reach the same state transitions as Hyprland layout messages.
+  -- Refresh is the only layout message emitted by controller operations.
   hl.dispatch = function(message)
     env.dispatched[#env.dispatched + 1] = message
     if type(message) == "string" then
-      a.equal(env.controller.definition.layout_msg(env.context, message), true)
+      a.equal(message, "_refresh")
+      a.equal(env.registered.dynamic.layout_msg(env.context, message), true)
     end
   end
   return env
 end
 
 return {
+  ["controller changes are published before requesting refresh"] = function()
+    local env = fixture.engine()
+    env.registered.dynamic.layout_msg(env.context, "tall")
+    fixture.focus(env, 1)
+    local refreshes = 0
+    hl.dispatch = function(message)
+      a.equal(message, "_refresh")
+      refreshes = refreshes + 1
+      a.near(env.ws.layout_state.tall.ratio, 0.47)
+      assert(a.read(env.state_path):find("TALL@0.470", 1, true))
+      -- No operation needs to run through layout_msg for the change to exist.
+    end
+    env.controller.shrink()
+    a.equal(refreshes, 1)
+  end,
+
+  ["refresh and recalculation preserve direct window reordering"] = function()
+    local env = engine()
+    fixture.focus(env, 3)
+    env.controller.promote()
+    a.equal(table.concat(env.ws.order, ","), "3,1,2")
+    env.registered.dynamic.recalculate(env.context)
+    a.equal(table.concat(env.ws.order, ","), "3,1,2")
+    a.equal(env.boxes[3], env.empty.area)
+  end,
+
+  ["controller creates state for an empty focused workspace"] = function()
+    local env = fixture.engine()
+    env.focused_workspace = { id = 99 }
+    env.active_window = nil
+    env.controller.shrink()
+    local ws = env.store.workspaces["id:99"]
+    a.near(ws.layout_state.tall.ratio, 0.47)
+    a.equal(env.ws.active_layout.name, "fullscreen")
+    a.equal(env.dispatched[#env.dispatched], "_refresh")
+  end,
+
   ["three-column row survives resizing and reflection while reset restores the first row"] = function()
     for _, command in ipairs({ "grow", "shrink", "ratio 0.6", "reflect", "reset", "swapnext" }) do
       local env = fixture.engine(5)
       local layout = env.controller
-      layout.definition.layout_msg(env.context, "three_col")
+      env.registered.dynamic.layout_msg(env.context, "three_col")
       fixture.focus(env, 4)
       layout.move_direction("r")
       fixture.focus(env, 1)
-      a.equal(layout.definition.layout_msg(env.context, command), true)
+      if command == "ratio 0.6" then layout.set_ratio(0.6)
+      elseif command == "swapnext" then layout.swap_next()
+      else layout[command]() end
       layout.move_direction("r")
       local expected = ({ reflect = 4, reset = 3, swapnext = 2 })[command] or 5
       a.equal(env.dispatched[#env.dispatched].window, "address:window" .. expected)
@@ -33,7 +72,7 @@ return {
   ["three-column focus preserves rows through the master in both directions"] = function()
     for _, reflected in ipairs({ false, true }) do
       local env = fixture.engine(5)
-      env.controller.definition.layout_msg(env.context, "three_col")
+      env.registered.dynamic.layout_msg(env.context, "three_col")
       env.ws.reflect = reflected
       local function move(direction, expected)
         env.controller.move_direction(direction)
@@ -66,7 +105,7 @@ return {
     local env = engine()
     local layout = env.controller
     for _, name in ipairs({ "fullscreen", "tall", "wide", "three_col" }) do
-      layout.definition.layout_msg(env.context, name)
+      env.registered.dynamic.layout_msg(env.context, name)
       for _, reflected in ipairs({ false, true }) do
         env.ws.reflect = reflected
         for index = 1, 3 do

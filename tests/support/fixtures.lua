@@ -63,13 +63,24 @@ end
 function M.engine(window_count)
     local env = M.hyprland()
     env.state_path, env.status_path = M.path("settings"), M.path("status")
-    env.controller = Engine.register({
+    -- Capture the store at its construction boundary for internal state tests;
+    -- production controllers do not expose mutable engine state.
+    local new_store = Store.new
+    ---@diagnostic disable-next-line: duplicate-set-field
+    Store.new = function(registry)
+        env.store = new_store(registry)
+        return env.store
+    end
+    local ok, controller = pcall(Engine.register, {
         registry = M.registry(),
         state_path = env.state_path,
         status_path = env.status_path
     })
+    Store.new = new_store
+    assert(ok, controller)
+    env.controller = controller
     env.empty = { targets = {}, area = { x = 0, y = 0, w = 100, h = 100 } }
-    env.controller.definition.layout_msg(env.empty, "fullscreen")
+    env.registered.dynamic.layout_msg(env.empty, "fullscreen")
     env.context = { area = env.empty.area, targets = {} }
     env.boxes = {}
     for i = 1, window_count or 3 do
@@ -91,8 +102,8 @@ function M.engine(window_count)
             end
         }
     end
-    env.controller.definition.recalculate(env.context)
-    env.ws = env.controller.store.workspaces["id:10"]
+    env.registered.dynamic.recalculate(env.context)
+    env.ws = env.store.workspaces["id:10"]
     return env
 end
 

@@ -5,7 +5,6 @@ local M = {}
 M.name = "wide"
 
 M.commands = { "wide" }
-M.messages = { "wide", "ratio <0.1..0.9>", "grow", "shrink" }
 
 function M.new_state()
     return { ratio = 0.5 }
@@ -27,9 +26,8 @@ function M.focus_changed()
     -- This strategy has no navigation history.
 end
 
-function M.handle(state, command, arg, _, layout_context)
-    return util.handle_ratio(state, command, arg, layout_context)
-end
+M.resize = util.resize_ratio
+M.set_ratio = util.set_ratio
 
 function M.neighbor(ids, active_id, direction, layout_context)
     local index = util.index_of(ids, active_id)

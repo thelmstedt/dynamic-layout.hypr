@@ -5,7 +5,6 @@ local M = {}
 M.name = "three_col"
 
 M.commands = { "three_col" }
-M.messages = { "three_col", "ratio <0.1..0.9>", "grow", "shrink" }
 
 function M.new_state()
     return { ratio = 1 / 3, focus_row = 1 }
@@ -65,9 +64,8 @@ function M.focus_neighbor(state, ids, active_id, direction, context)
     return neighbor
 end
 
-function M.handle(state, command, arg, _, layout_context)
-    return util.handle_ratio(state, command, arg, layout_context)
-end
+M.resize = util.resize_ratio
+M.set_ratio = util.set_ratio
 
 function M.place(ctx, targets, ids, state, layout_context)
     local master_id = ids[1]
