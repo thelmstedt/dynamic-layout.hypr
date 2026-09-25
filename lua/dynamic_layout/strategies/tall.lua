@@ -1,76 +1,59 @@
 local util = require("dynamic_layout.framework.util")
 
-local M = {}
+---@class TallState
+---@field ratio number
 
-M.name = "tall"
+---@type LayoutStrategy<TallState>
+local strategy = {
+    name = "tall",
 
-M.default = true
-M.commands = { "tall" }
+    new_state = function ()
+        return { ratio = 0.5 }
+    end,
 
-function M.new_state()
-    return { ratio = 0.5 }
-end
+    neighbor = function (_, ids, active_id, direction, workspace)
+        local index = util.index_of(ids, active_id)
+        if not index then return nil end
 
-function M.label(state)
-    return util.ratio_label("TALL", state.ratio)
-end
+        local toward_stack = workspace.reflect and "l" or "r"
+        local toward_master = workspace.reflect and "r" or "l"
+        if index == 1 then
+            return direction == toward_stack and ids[2] or nil
+        elseif direction == toward_master then
+            return ids[1]
+        elseif direction == "u" then
+            return index > 2 and ids[index - 1] or nil
+        elseif direction == "d" then
+            return ids[index + 1]
+        end
+    end,
 
-function M.restore_label(state, label)
-    return util.restore_ratio_label(state, label, "TALL")
-end
+    place = function (state, layout_context, targets, workspace)
+        local ids = workspace.order
+        local master_id = ids[1]
+        local master = targets[master_id]
+        if not master then
+            return
+        end
 
-function M.focus_neighbor(_, ids, active_id, direction, context)
-    return M.neighbor(ids, active_id, direction, context)
-end
+        if #ids == 1 then
+            master:place(layout_context.area)
+            return
+        end
 
-function M.focus_changed()
-    -- This strategy has no navigation history.
-end
+        local reflect = workspace.reflect
+        if reflect then
+            master:place(layout_context:split(layout_context.area, "right", state.ratio))
+            util.place_stack(
+                layout_context, targets, { table.unpack(ids, 2) }, layout_context:split(layout_context.area, "left", 1 - state.ratio), "vertical"
+            )
+        else
+            master:place(layout_context:split(layout_context.area, "left", state.ratio))
+            util.place_stack(
+                layout_context, targets, { table.unpack(ids, 2) }, layout_context:split(layout_context.area, "right", 1 - state.ratio), "vertical"
+            )
+        end
+    end,
+}
 
-M.resize = util.resize_ratio
-M.set_ratio = util.set_ratio
-
-function M.neighbor(ids, active_id, direction, layout_context)
-    local index = util.index_of(ids, active_id)
-    if not index then return nil end
-
-    local toward_stack = layout_context.reflect and "l" or "r"
-    local toward_master = layout_context.reflect and "r" or "l"
-    if index == 1 then
-        return direction == toward_stack and ids[2] or nil
-    elseif direction == toward_master then
-        return ids[1]
-    elseif direction == "u" then
-        return index > 2 and ids[index - 1] or nil
-    elseif direction == "d" then
-        return ids[index + 1]
-    end
-end
-
-function M.place(ctx, targets, ids, state, layout_context)
-    local master_id = ids[1]
-    local master = targets[master_id]
-    if not master then
-        return
-    end
-
-    if #ids == 1 then
-        master:place(ctx.area)
-        return
-    end
-
-    local reflect = layout_context and layout_context.reflect
-    if reflect then
-        master:place(ctx:split(ctx.area, "right", state.ratio))
-        util.place_stack(
-            ctx, targets, { table.unpack(ids, 2) }, ctx:split(ctx.area, "left", 1 - state.ratio), "vertical"
-        )
-    else
-        master:place(ctx:split(ctx.area, "left", state.ratio))
-        util.place_stack(
-            ctx, targets, { table.unpack(ids, 2) }, ctx:split(ctx.area, "right", 1 - state.ratio), "vertical"
-        )
-    end
-end
-
-return M
+return strategy

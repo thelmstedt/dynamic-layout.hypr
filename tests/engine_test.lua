@@ -4,6 +4,44 @@ local Store = require("dynamic_layout.framework.store")
 local Persistence = require("dynamic_layout.framework.persistence")
 
 return {
+    ["window reordering survives repeated config reloads with partial target lists"] = function ()
+        local env = fixture.engine()
+        fixture.focus(env, 3)
+        env.controller.swap_with_master()
+        a.equal(table.concat(env.ws.order, ","), "3,2,1")
+        for _ = 1, 2 do
+            require("dynamic_layout.framework.engine").register({
+                registry = fixture.registry(), state_path = env.state_path, status_path = env.status_path
+            })
+            -- Startup publishing and an empty pass must not discard saved order.
+            env.registered.dynamic.recalculate(env.empty)
+            -- Hyprland rebuilds the layout one target at a time on reload.
+            local partial = { area = env.context.area, targets = {} }
+            for _, target in ipairs(env.context.targets) do
+                partial.targets[#partial.targets + 1] = target
+                env.registered.dynamic.recalculate(partial)
+            end
+            local restored = Store.new(fixture.registry())
+            Persistence.load(restored, env.state_path, a.unexpected)
+            a.equal(table.concat(restored.workspaces["id:10"].order, ","), "3,2,1")
+        end
+    end,
+
+    ["reload removes closed floating and moved windows from saved order"] = function ()
+        local env = fixture.engine(4)
+        fixture.focus(env, 4)
+        env.controller.promote()
+        env.windows[1].workspace = { id = 11 }
+        env.windows[2].floating = true
+        env.windows[3].mapped = false
+        require("dynamic_layout.framework.engine").register({
+            registry = fixture.registry(), state_path = env.state_path, status_path = env.status_path
+        })
+        local restored = Store.new(fixture.registry())
+        Persistence.load(restored, env.state_path, a.unexpected)
+        a.equal(table.concat(restored.workspaces["id:10"].order, ","), "4")
+    end,
+
     ["external messages select layouts but do not execute controller operations"] = function ()
         local env = fixture.engine()
         env.registered.dynamic.layout_msg(env.context, "tall")
@@ -15,7 +53,8 @@ return {
         a.equal(table.concat(env.ws.order, ","), "1,2,3")
         a.equal(env.registered.dynamic.layout_msg(env.empty, "_refresh"), true)
         a.equal(table.concat(env.ws.order, ","), "1,2,3")
-        a.equal(env.registered.dynamic.layout_msg(env.context, "full"), true)
+        a.equal(type(env.registered.dynamic.layout_msg(env.context, "full")), "string")
+        a.equal(env.registered.dynamic.layout_msg(env.context, "fullscreen"), true)
         a.equal(env.ws.active_layout.name, "fullscreen")
     end,
 

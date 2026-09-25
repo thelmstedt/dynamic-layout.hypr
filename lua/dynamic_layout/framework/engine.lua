@@ -2,6 +2,7 @@ local Store = require("dynamic_layout.framework.store")
 local Persistence = require("dynamic_layout.framework.persistence")
 local util = require("dynamic_layout.framework.util")
 
+---@class LayoutEngineModule
 local Engine = {}
 
 ---@class LayoutEngineOptions
@@ -21,10 +22,12 @@ function Engine.register(options)
     local registry = options.registry
     local layouts = registry.layouts
     local store = Store.new(registry)
+    ---@param message string
     local function report(message)
         print("dynamic_layout: " .. message)
     end
     Persistence.load(store, options.state_path, report)
+    Store.prune(store, hl.get_windows())
     local settings_writer = Persistence.writer(options.state_path, report)
     local status_writer = Persistence.writer(options.status_path, report)
     local function publish()
@@ -37,49 +40,59 @@ function Engine.register(options)
         hl.dispatch(hl.dsp.layout("_refresh"))
     end
 
+    ---@param window HL.Window?
+    ---@return boolean
     local function is_managed_layout(window)
         if not window or window.floating then return false end
         local layout_name = util.field(window.layout, "name")
         return layout_name == name or layout_name == "lua:" .. name
     end
 
+    ---@param window HL.Window?
+    ---@return string?
     local function window_id(window)
         local id = util.field(window, "stable_id")
         return id and tostring(id)
     end
 
+    ---@param ws LayoutWorkspaceState
+    ---@param id string?
     local function focus_window(ws, id)
         local address = id and ws.addresses[id]
         if address then hl.dispatch(hl.dsp.focus({ window = "address:" .. address })) end
     end
 
-    local function recalculate(ctx)
-        if not ctx.targets or #ctx.targets == 0 then
-            Store.prune(store, hl.get_windows())
+    ---@param layout_context HL.LayoutContext
+    local function recalculate(layout_context)
+        Store.prune(store, hl.get_windows())
+        if not layout_context.targets or #layout_context.targets == 0 then
             publish()
             return
         end
 
-        local ws = Store.workspace(store, ctx)
+        local ws = Store.workspace(store, layout_context)
         if not ws then return end
-        local targets = Store.sync_order(ctx, ws)
-        if #ws.order == 0 then return end
+        local targets, order = Store.sync_order(ws, layout_context)
+        if #order == 0 then return end
 
-        ws.active_layout.place(ctx, targets, ws.order, ws.layout_state[ws.active_layout.name], {
-            active_id = Store.active_id(ctx, ws),
-            order = ws.order,
+        ws.active_layout.place(ws.layout_state[ws.active_layout.name], layout_context, targets, {
+            active_id = Store.active_id(ws, layout_context),
+            order = order,
             reflect = ws.reflect
         })
         publish()
     end
 
-    local function layout_msg(ctx, msg)
+    ---@param layout_context HL.LayoutContext
+    ---@param msg string
+    ---@return boolean|string
+    local function layout_msg(layout_context, msg)
         if msg == "_refresh" then return true end
-        local selected_layout = registry.commands[msg]
+        local selected_layout = registry.by_name[msg]
         if not selected_layout then
-            return "dynamic-layout.hypr: expected " .. table.concat(registry.commands_list, ", ")
+            return "dynamic-layout.hypr: expected " .. table.concat(registry.names, ", ")
         end
-        local ws = Store.workspace(store, ctx, hl.get_active_workspace())
+        local ws = Store.workspace(store, layout_context, hl.get_active_workspace())
         if not ws then return name .. ": no workspace for layout message" end
         ws.active_layout = selected_layout
 
@@ -87,26 +100,34 @@ function Engine.register(options)
         return true
     end
 
+    ---@param window HL.Window
     local function window_closed(window)
         Store.remove_window(store, window_id(window))
         publish()
     end
 
+    ---@param window HL.Window
+    ---@param destination HL.Workspace
     local function window_moved(window, destination)
         Store.remove_window(store, window_id(window), Store.workspace_key(destination))
         publish()
     end
 
+    ---@param workspace HL.Workspace
     local function workspace_removed(workspace)
         Store.clear_workspace(store, workspace)
         publish()
     end
 
+    ---@param window HL.Window?
     local function window_activated(window)
         local ws = Store.workspace_for_window(store, window)
         local id = window_id(window)
         if ws and util.index_of(ws.order, id) and is_managed_layout(window) then
-            ws.active_layout.focus_changed(ws.layout_state[ws.active_layout.name], id, ws.order)
+            local strategy = ws.active_layout
+            if strategy.on_focused_changed then
+                strategy.on_focused_changed(ws.layout_state[strategy.name], ws.order, id)
+            end
             ws.selected_id = id
             if ws.active_layout.needs_focus_recalculate then
                 refresh()
@@ -114,6 +135,8 @@ function Engine.register(options)
         end
     end
 
+    ---@param ws LayoutWorkspaceState
+    ---@param next boolean
     local function cycle_layout(ws, next)
         local current = util.index_of(layouts, ws.active_layout) or 1
         local target = next and current + 1 or current - 1
@@ -125,14 +148,22 @@ function Engine.register(options)
         ws.active_layout = layouts[target]
     end
 
-    local function context(ws)
+    ---@param ws LayoutWorkspaceState
+    ---@return WorkspaceContext
+    local function workspace_context(ws)
         return { active_id = ws.selected_id, order = ws.order, reflect = ws.reflect }
     end
 
+    ---@param ws LayoutWorkspaceState
+    ---@param delta number
+    ---@return false|nil
     local function resize(ws, delta)
-        ws.active_layout.resize(ws.layout_state[ws.active_layout.name], delta, context(ws))
+        local state = ws.layout_state[ws.active_layout.name]
+        if state.ratio == nil then return false end
+        util.resize_ratio(state, delta, workspace_context(ws))
     end
 
+    ---@param ws LayoutWorkspaceState
     local function reset(ws)
         ws.reflect = false
         for _, layout in ipairs(layouts) do
@@ -140,27 +171,37 @@ function Engine.register(options)
         end
     end
 
+    ---@param ws LayoutWorkspaceState
     local function reflect(ws)
         ws.reflect = not ws.reflect
     end
 
+    ---@param ws LayoutWorkspaceState
     local function promote(ws)
         Store.promote_active(ws, ws.selected_id)
     end
 
+    ---@param ws LayoutWorkspaceState
     local function demote(ws)
         Store.demote_active(ws, ws.selected_id)
     end
 
+    ---@param ws LayoutWorkspaceState
     local function swap_with_master(ws)
         Store.swap_active_with(ws, ws.selected_id, ws.order[1])
     end
 
+    ---@param ws LayoutWorkspaceState
+    ---@param ratio number
+    ---@return false|nil
     local function set_ratio(ws, ratio)
         assert(type(ratio) == "number" and ratio >= 0.1 and ratio <= 0.9, "ratio must be a number between 0.1 and 0.9")
-        ws.active_layout.set_ratio(ws.layout_state[ws.active_layout.name], ratio)
+        local state = ws.layout_state[ws.active_layout.name]
+        if state.ratio == nil then return false end
+        util.set_ratio(state, ratio)
     end
 
+    ---@param next boolean
     local function cycle_focus(next)
         local window = hl.get_active_window()
         local ws = Store.workspace_for_window(store, window)
@@ -182,14 +223,17 @@ function Engine.register(options)
         focus_window(ws, order[target])
     end
 
+    ---@param ws LayoutWorkspaceState
+    ---@param next boolean
+    ---@return false|nil
     local function swap_active(ws, next)
         local window = hl.get_active_window()
         if Store.workspace_for_window(store, window) ~= ws or not is_managed_layout(window) then return false end
         Store.swap_active(ws, ws.selected_id, next)
     end
 
-    --- Move focus using the same neighbors as directional swapping.
-    ---@param direction "l" | "r" | "u" | "d"
+    --- Resolve the focus neighbor, including strategy-specific navigation history.
+    ---@param direction LayoutDirection
     local function move_direction(direction)
         local window = hl.get_active_window()
         local ws = Store.workspace_for_window(store, window)
@@ -198,20 +242,26 @@ function Engine.register(options)
             return
         end
 
-        local context = { active_id = window_id(window), order = ws.order, reflect = ws.reflect }
+        ---@type WorkspaceContext
+        local workspace = { active_id = window_id(window), order = ws.order, reflect = ws.reflect }
         local strategy = ws.active_layout
-        local neighbor = strategy.focus_neighbor(
-            ws.layout_state[strategy.name], ws.order, context.active_id, direction, context
+        local neighbor = strategy.neighbor(
+            ws.layout_state[strategy.name], ws.order, workspace.active_id, direction, workspace, true
         )
         focus_window(ws, neighbor)
     end
 
-    ---@param direction "l" | "r" | "u" | "d"
+    ---@param ws LayoutWorkspaceState
+    ---@param direction LayoutDirection
     local function swap_direction(ws, direction)
-        local neighbor = ws.active_layout.neighbor(ws.order, ws.selected_id, direction, context(ws))
+        local strategy = ws.active_layout
+        local neighbor = strategy.neighbor(
+            ws.layout_state[strategy.name], ws.order, ws.selected_id, direction, workspace_context(ws), false
+        )
         Store.swap_active_with(ws, ws.selected_id, neighbor)
     end
 
+    ---@return LayoutWorkspaceState?
     local function current_workspace()
         local ws = Store.for_workspace(store, hl.get_active_workspace())
         if not ws then return nil end
@@ -224,6 +274,10 @@ function Engine.register(options)
     end
     -- Wrap mutations only when exposing them as controller callbacks.
     -- Returning false skips publishing and refresh for an inapplicable action.
+    ---@generic A
+    ---@overload fun(operation: fun(ws: LayoutWorkspaceState): false|nil): fun()
+    ---@param operation fun(ws: LayoutWorkspaceState, arg: A): false|nil
+    ---@return fun(arg: A)
     local function action(operation)
         return function (...)
             local ws = current_workspace()
@@ -241,7 +295,8 @@ function Engine.register(options)
     hl.on("window.active", window_activated)
     publish()
 
-    return {
+    ---@type LayoutController
+    local controller = {
         name = name,
         reset = action(reset),
         reflect = action(reflect),
@@ -262,6 +317,7 @@ function Engine.register(options)
         move_direction = move_direction,
         swap_direction = action(swap_direction)
     }
+    return controller
 end
 
 ---@class LayoutController
@@ -282,7 +338,7 @@ end
 ---@field set_ratio        fun(ratio: number)
 ---@field cycle_focus      fun(next: boolean)
 ---@field swap_active      fun(next: boolean)
----@field move_direction   fun(direction: "l" | "r" | "u" | "d")
----@field swap_direction   fun(direction: "l" | "r" | "u" | "d")
+---@field move_direction   fun(direction: LayoutDirection)
+---@field swap_direction   fun(direction: LayoutDirection)
 
 return Engine

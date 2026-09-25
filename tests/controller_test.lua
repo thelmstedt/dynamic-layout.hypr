@@ -171,6 +171,19 @@ return {
     a.equal(env.ws.active_layout.name, "fullscreen")
   end,
 
+  ["ratio operations skip layouts without a ratio"] = function()
+    local env = engine()
+    a.equal(env.ws.active_layout.name, "fullscreen")
+    local dispatches = #env.dispatched
+    local settings = a.read(env.state_path)
+    env.controller.grow()
+    env.controller.shrink()
+    env.controller.set_ratio(0.7)
+    a.equal(env.ws.layout_state.fullscreen.ratio, nil)
+    a.equal(#env.dispatched, dispatches)
+    a.equal(a.read(env.state_path), settings)
+  end,
+
   ["reordering callbacks preserve distinct swap promote and demote behavior"] = function()
     local env = engine()
     local layout = env.controller

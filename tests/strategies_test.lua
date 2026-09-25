@@ -5,8 +5,8 @@ local wide = require("dynamic_layout.strategies.wide")
 local three_col = require("dynamic_layout.strategies.three_col")
 
 local function geometry_context()
-    local ctx = { area = { x = 10, y = 20, w = 1200, h = 600 } }
-    function ctx:split(area, side, ratio)
+    local layout_context = { area = { x = 10, y = 20, w = 1200, h = 600 } }
+    function layout_context:split(area, side, ratio)
         local box = { x = area.x, y = area.y, w = area.w, h = area.h }
         if side == "left" or side == "right" then
             box.w = area.w * ratio
@@ -19,12 +19,12 @@ local function geometry_context()
         end
         return box
     end
-    return ctx
+    return layout_context
 end
 
 return {
     ["tall stacks children vertically on either side of the master"] = function ()
-        local ctx = geometry_context()
+        local layout_context = geometry_context()
         for _, reflect in ipairs({ false, true }) do
             for _, count in ipairs({ 1, 2, 3, 4 }) do
                 local ids, targets, boxes = {}, {}, {}
@@ -37,7 +37,7 @@ return {
                         end
                     }
                 end
-                tall.place(ctx, targets, ids, { ratio = 0.6 }, { reflect = reflect })
+                tall.place({ ratio = 0.6 }, layout_context, targets, { order = ids, reflect = reflect })
                 local master = boxes["1"]
                 a.near(master.x, count == 1 and 10 or (reflect and 490 or 10))
                 a.near(master.y, 20)
@@ -55,7 +55,7 @@ return {
     end,
 
     ["wide arranges children horizontally above or below the master"] = function ()
-        local ctx = geometry_context()
+        local layout_context = geometry_context()
         for _, reflect in ipairs({ false, true }) do
             for _, count in ipairs({ 1, 2, 3, 4 }) do
                 local ids, targets, boxes = {}, {}, {}
@@ -68,7 +68,7 @@ return {
                         end
                     }
                 end
-                wide.place(ctx, targets, ids, { ratio = 0.6 }, { reflect = reflect })
+                wide.place({ ratio = 0.6 }, layout_context, targets, { order = ids, reflect = reflect })
                 local master = boxes["1"]
                 a.near(master.x, 10)
                 a.near(master.y, count == 1 and 20 or (reflect and 260 or 20))
@@ -87,67 +87,59 @@ return {
 
     ["grow and shrink resize the focused side"] = function ()
         local state = { ratio = 0.5 }
-        local context = { active_id = "master", order = { "master", "stack" }, reflect = false }
-        util.resize_ratio(state, 0.03, context)
+        local workspace = { active_id = "master", order = { "master", "stack" }, reflect = false }
+        util.resize_ratio(state, 0.03, workspace)
         a.near(state.ratio, 0.53)
-        context.active_id = "stack"
-        util.resize_ratio(state, 0.03, context)
+        workspace.active_id = "stack"
+        util.resize_ratio(state, 0.03, workspace)
         a.near(state.ratio, 0.5)
-        util.resize_ratio(state, -0.03, context)
+        util.resize_ratio(state, -0.03, workspace)
         a.near(state.ratio, 0.53)
-    end,
-
-    ["tall ratio labels round trip"] = function ()
-        local state = tall.new_state()
-        state.ratio = 0.637
-        a.equal(tall.label(state), "TALL@0.637")
-        local restored = tall.new_state()
-        a.equal(tall.restore_label(restored, tall.label(state)), true)
-        a.equal(restored.ratio, 0.637)
     end,
 
     ["tall neighbors follow master and stack geometry"] = function ()
-        local ids, context = { "a", "b", "c" }, { reflect = false }
-        a.equal(tall.neighbor(ids, "a", "r", context), "b")
-        a.equal(tall.neighbor(ids, "c", "u", context), "b")
-        a.equal(tall.neighbor(ids, "b", "l", context), "a")
+        local ids = { "a", "b", "c" }
+        local workspace = { order = ids, reflect = false }
+        a.equal(tall.neighbor(tall.new_state(), ids, "a", "r", workspace, false), "b")
+        a.equal(tall.neighbor(tall.new_state(), ids, "c", "u", workspace, false), "b")
+        a.equal(tall.neighbor(tall.new_state(), ids, "b", "l", workspace, false), "a")
     end,
 
     ["three-column neighbors respect reflection and boundaries"] = function ()
         local ids = { "master", "left1", "right1", "left2", "right2" }
-        a.equal(three_col.neighbor(ids, "master", "l", { reflect = false }), "left1")
-        a.equal(three_col.neighbor(ids, "master", "r", { reflect = false }), "right1")
-        a.equal(three_col.neighbor(ids, "left1", "d", { reflect = false }), "left2")
-        a.equal(three_col.neighbor(ids, "master", "l", { reflect = true }), "right1")
+        a.equal(three_col.neighbor(three_col.new_state(), ids, "master", "l", { order = ids, reflect = false }, false), "left1")
+        a.equal(three_col.neighbor(three_col.new_state(), ids, "master", "r", { order = ids, reflect = false }, false), "right1")
+        a.equal(three_col.neighbor(three_col.new_state(), ids, "left1", "d", { order = ids, reflect = false }, false), "left2")
+        a.equal(three_col.neighbor(three_col.new_state(), ids, "master", "l", { order = ids, reflect = true }, false), "right1")
         for _, reflect in ipairs({ false, true }) do
-            local context = { reflect = reflect }
-            a.equal(three_col.neighbor(ids, "left1", "u", context), nil)
-            a.equal(three_col.neighbor(ids, "right1", "u", context), nil)
-            a.equal(three_col.neighbor(ids, "right2", "u", context), "right1")
-            a.equal(three_col.neighbor(ids, "right2", "d", context), nil)
+            local workspace = { order = ids, reflect = reflect }
+            a.equal(three_col.neighbor(three_col.new_state(), ids, "left1", "u", workspace, false), nil)
+            a.equal(three_col.neighbor(three_col.new_state(), ids, "right1", "u", workspace, false), nil)
+            a.equal(three_col.neighbor(three_col.new_state(), ids, "right2", "u", workspace, false), "right1")
+            a.equal(three_col.neighbor(three_col.new_state(), ids, "right2", "d", workspace, false), nil)
         end
     end,
 
     ["three-column tracks its row independently of swaps and other workspaces"] = function ()
         local ids = { "master", "left1", "right1", "left2", "right2" }
         local state, other = three_col.new_state(), three_col.new_state()
-        local context = { reflect = false }
-        a.equal(three_col.focus_neighbor(state, ids, "left2", "r", context), "master")
-        three_col.focus_changed(state, "master", ids)
-        a.equal(three_col.neighbor(ids, "master", "r", context), "right1")
-        a.equal(three_col.focus_neighbor(other, ids, "master", "r", context), "right1")
-        a.equal(three_col.focus_neighbor(state, ids, "master", "r", context), "right2")
+        local workspace = { order = ids, reflect = false }
+        a.equal(three_col.neighbor(state, ids, "left2", "r", workspace, true), "master")
+        three_col.on_focused_changed(state, ids,"master")
+        a.equal(three_col.neighbor(state, ids, "master", "r", workspace, false), "right1")
+        a.equal(three_col.neighbor(other, ids, "master", "r", workspace, true), "right1")
+        a.equal(three_col.neighbor(state, ids, "master", "r", workspace, true), "right2")
         local short = { "master", "left1", "right1", "left2" }
-        a.equal(three_col.focus_neighbor(state, short, "left2", "r", context), "master")
-        a.equal(three_col.focus_neighbor(state, short, "master", "r", context), "right1")
-        three_col.focus_neighbor(state, ids, "left2", "r", context)
-        three_col.focus_changed(state, "left1", ids)
-        a.equal(three_col.focus_neighbor(state, ids, "master", "r", context), "right1")
+        a.equal(three_col.neighbor(state, short, "left2", "r", workspace, true), "master")
+        a.equal(three_col.neighbor(state, short, "master", "r", workspace, true), "right1")
+        three_col.neighbor(state, ids, "left2", "r", workspace, true)
+        three_col.on_focused_changed(state, ids, "left1")
+        a.equal(three_col.neighbor(state, ids, "master", "r", workspace, true), "right1")
     end,
 
     ["three-column fills the area as windows are added and removed"] = function ()
-        local ctx = { area = { x = 10, y = 20, w = 1200, h = 600 } }
-        function ctx:split(area, side, ratio)
+        local layout_context = { area = { x = 10, y = 20, w = 1200, h = 600 } }
+        function layout_context:split(area, side, ratio)
             assert(side == "left" or side == "right")
             return {
                 x = area.x + (side == "right" and area.w * (1 - ratio) or 0),
@@ -169,25 +161,25 @@ return {
                         end
                     }
                 end
-                three_col.place(ctx, targets, ids, state, { reflect = reflect })
+                three_col.place(state, layout_context, targets, { order = ids, reflect = reflect })
                 local ordered = {}
                 for _, id in ipairs(ids) do
                     local box = assert(boxes[id])
-                    a.near(box.w, ctx.area.w / count)
-                    a.near(box.h, ctx.area.h)
-                    a.near(box.y, ctx.area.y)
+                    a.near(box.w, layout_context.area.w / count)
+                    a.near(box.h, layout_context.area.h)
+                    a.near(box.y, layout_context.area.y)
                     ordered[#ordered + 1] = box
                 end
                 table.sort(ordered, function (left, right) return left.x < right.x end)
-                local edge = ctx.area.x
+                local edge = layout_context.area.x
                 for _, box in ipairs(ordered) do
                     a.near(box.x, edge)
                     edge = edge + box.w
                 end
-                a.near(edge, ctx.area.x + ctx.area.w)
+                a.near(edge, layout_context.area.x + layout_context.area.w)
                 if count == 2 then
                     a.near(boxes["1"].x, reflect and 10 or 610)
-                    a.equal(three_col.neighbor(ids, "1", reflect and "r" or "l", { reflect = reflect }), "2")
+                    a.equal(three_col.neighbor(three_col.new_state(), ids, "1", reflect and "r" or "l", { order = ids, reflect = reflect }, false), "2")
                 end
             end
         end

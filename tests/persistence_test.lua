@@ -4,7 +4,45 @@ local Store = require("dynamic_layout.framework.store")
 local Persistence = require("dynamic_layout.framework.persistence")
 
 return {
-    ["settings retain every ratio and discard transient window data"] = function ()
+    ["window order restores without session metadata"] = function ()
+        local store, ws = fixture.store()
+        ws.order = { "b", "a", "id,with delimiter" }
+        local path = fixture.path("settings")
+        for _, prefix in ipairs({ "", "# session=old-instance\n" }) do
+            a.write(path, prefix .. Persistence.settings(store))
+            local restored = Store.new(fixture.registry())
+            Persistence.load(restored, path, a.unexpected)
+            local restored_ws = restored.workspaces["id:7"]
+            a.equal(table.concat(restored_ws.order, "|"), "b|a|id,with delimiter")
+            a.equal(restored_ws.layout_state.tall.ratio, 0.61)
+            a.equal(next(restored_ws.addresses), nil)
+        end
+    end,
+
+    ["framework labels restore strategies with and without ratios"] = function ()
+        local registry = fixture.registry()
+        local path = fixture.path("labels")
+        for _, strategy in ipairs(registry.layouts) do
+            local store = Store.new(registry)
+            local ws = assert(Store.workspace(store, { targets = {} }, { id = 7 }))
+            ws.active_layout = strategy
+            ws.reflect = true
+            local state = ws.layout_state[strategy.name]
+            if state.ratio then state.ratio = 0.637 end
+            local label = strategy.name:upper() .. (state.ratio and "@0.637" or "") .. ":R"
+            a.equal(Store.layout_label(ws), label)
+            a.write(path, Persistence.settings(store))
+            local restored = Store.new(registry)
+            Persistence.load(restored, path, a.unexpected)
+            a.equal(Store.layout_label(restored.workspaces["id:7"]), label)
+            -- A bare name also selects a strategy without requiring a ratio.
+            a.write(path, "id:7 " .. strategy.name:upper() .. "\n")
+            Persistence.load(restored, path, a.unexpected)
+            a.equal(restored.workspaces["id:7"].active_layout, strategy)
+        end
+    end,
+
+    ["settings retain ratios and order but discard window addresses"] = function ()
         local store = fixture.store()
         local path = fixture.path("settings")
         a.equal(Persistence.write(Persistence.writer(path, a.unexpected), Persistence.settings(store)), true)
@@ -16,7 +54,7 @@ return {
         a.equal(ws.layout_state.wide.ratio, 0.72)
         a.equal(ws.layout_state.three_col.ratio, 1 / 3)
         a.equal(next(ws.addresses), nil)
-        a.equal(#ws.order, 0)
+        a.equal(table.concat(ws.order, ","), "a,b")
     end,
 
     ["saving another workspace preserves unvisited settings"] = function ()

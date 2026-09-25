@@ -1,8 +1,10 @@
 local Engine = require("dynamic_layout.framework.engine")
 local Registry = require("dynamic_layout.framework.registry")
 
+---@class DynamicLayoutModule
 local M = {}
 
+---@return string
 local function state_directory()
     local base = os.getenv("XDG_STATE_HOME")
     if not base or base:sub(1, 1) ~= "/" then
@@ -13,6 +15,8 @@ local function state_directory()
     return base .. "/dynamic-layout.hypr"
 end
 
+---@param directory string
+---@return string
 local function ensure_directory(directory)
     -- Quote the path for the shell, including embedded single quotes.
     local quoted = "'" .. directory:gsub("'", "'\\''") .. "'"

@@ -76,10 +76,7 @@ We track state in two separate files:
 - `settings` is restored on startup - all workspace layout settings
 - `status` is overwritten on startup and never restored.
 
-`settings` is restored on startup stores all strategy preferences. Window-close,
-workspace-move, and workspace-removal hooks clear transient state while retaining
-workspace preferences. Empty recalculations reconcile against live compositor
-windows instead of assuming that the focused workspace is the one recalculating.
+`settings` is restored on startup and stores all strategy preferences and window order.
 
 `status` is overwritten on startup and stores workspace, layout details and open
 window addresses. This is intended for external consumers (e.g. quickshell)
