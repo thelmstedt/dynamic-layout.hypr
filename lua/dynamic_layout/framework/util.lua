@@ -39,31 +39,6 @@ function M.ratio_label(name, ratio)
     return string.format("%s@%.3f", name, ratio)
 end
 
----@param state { ratio?: number }
----@param name  string
----@param label string?
----@return boolean
-function M.restore_ratio_label(state, name, label)
-    if not label then
-        return false
-    end
-
-    if label == name then
-        return true
-    end
-
-    local label_name, ratio = label:match("^(.-)@([%d.]+)$")
-    if label_name ~= name or not ratio then
-        return false
-    end
-
-    local current_ratio = state.ratio
-    if current_ratio then
-        state.ratio = M.clamp(tonumber(ratio) or current_ratio, 0.1, 0.9)
-    end
-    return true
-end
-
 ---@param layout_context HL.LayoutContext
 ---@param targets table<string, HL.LayoutTarget>
 ---@param ids string[]

@@ -93,6 +93,7 @@ local function encode_table(val, stack)
       table.insert(res, encode(k, stack) .. ":" .. encode(v, stack))
     end
     stack[val] = nil
+    table.sort(res) -- Local patch: deterministic snapshots.
     return "{" .. table.concat(res, ",") .. "}"
   end
 end
@@ -108,7 +109,7 @@ local function encode_number(val)
   if val ~= val or val <= -math.huge or val >= math.huge then
     error("unexpected number value '" .. tostring(val) .. "'")
   end
-  return string.format("%.14g", val)
+  return string.format("%.17g", val) -- Local patch: preserve double precision.
 end
 
 

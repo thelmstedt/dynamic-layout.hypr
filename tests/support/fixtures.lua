@@ -26,7 +26,7 @@ function M.store()
     ws.layout_state.wide.ratio = 0.72
     ws.layout_state.three_col.ratio = 1 / 3
     ws.reflect = true
-    ws.active_layout = store.registry.by_name.fullscreen
+    ws.active_layout = "fullscreen"
     ws.order = { "a", "b" }
     ws.addresses = { a = "abc", b = "def" }
     ws.selected_id = "b"
@@ -65,7 +65,7 @@ end
 
 function M.engine(window_count)
     local env = M.hyprland()
-    env.state_path, env.status_path = M.path("settings"), M.path("status")
+    env.state_path = M.path("state.json")
     -- Capture the store at its construction boundary for internal state tests;
     -- production controllers do not expose mutable engine state.
     local new_store = Store.new
@@ -76,8 +76,7 @@ function M.engine(window_count)
     end
     local ok, controller = pcall(Engine.register, {
         registry = M.registry(),
-        state_path = env.state_path,
-        status_path = env.status_path
+        state_path = env.state_path
     })
     Store.new = new_store
     assert(ok, controller)

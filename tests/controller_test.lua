@@ -24,7 +24,8 @@ return {
       a.dispatch(message, "layout", "_refresh")
       refreshes = refreshes + 1
       a.near(env.ws.layout_state.tall.ratio, 0.47)
-      assert(a.read(env.state_path):find("TALL@0.470", 1, true))
+      local saved = require("dynamic_layout.vendor.json").decode(a.read(env.state_path))
+      a.near(saved.workspaces["id:10"].layout_state.tall.ratio, 0.47)
       -- No operation needs to run through layout_msg for the change to exist.
     end
     env.controller.shrink()
@@ -48,7 +49,7 @@ return {
     env.controller.shrink()
     local ws = env.store.workspaces["id:99"]
     a.near(ws.layout_state.tall.ratio, 0.47)
-    a.equal(env.ws.active_layout.name, "fullscreen")
+    a.equal(env.ws.active_layout, "fullscreen")
     a.dispatch(env.dispatched[#env.dispatched], "layout", "_refresh")
   end,
 
@@ -153,7 +154,7 @@ return {
     local env = engine()
     local layout = env.controller
     layout.next_layout()
-    a.equal(env.ws.active_layout.name, "tall")
+    a.equal(env.ws.active_layout, "tall")
     fixture.focus(env, 1)
     layout.grow()
     a.near(env.ws.layout_state.tall.ratio, 0.53)
@@ -166,14 +167,14 @@ return {
     layout.reset()
     a.equal(env.ws.reflect, false)
     a.near(env.ws.layout_state.tall.ratio, 0.5)
-    a.equal(env.ws.active_layout.name, "tall")
+    a.equal(env.ws.active_layout, "tall")
     layout.prev_layout()
-    a.equal(env.ws.active_layout.name, "fullscreen")
+    a.equal(env.ws.active_layout, "fullscreen")
   end,
 
   ["ratio operations skip layouts without a ratio"] = function()
     local env = engine()
-    a.equal(env.ws.active_layout.name, "fullscreen")
+    a.equal(env.ws.active_layout, "fullscreen")
     local dispatches = #env.dispatched
     local settings = a.read(env.state_path)
     env.controller.grow()
@@ -209,14 +210,14 @@ return {
     env.ws.layout_state.tall.ratio = 0.8
     env.ws.layout_state.wide.ratio = 0.8
     env.controller.reset()
-    a.equal(env.ws.active_layout.name, "fullscreen")
+    a.equal(env.ws.active_layout, "fullscreen")
     a.near(env.ws.layout_state.tall.ratio, 0.5)
     a.equal(env.ws.reflect, false)
     a.near(env.ws.layout_state.wide.ratio, 0.5)
     env.controller.reflect()
     a.equal(env.ws.reflect, true)
     env.controller.next_layout()
-    a.equal(env.ws.active_layout.name, "tall")
+    a.equal(env.ws.active_layout, "tall")
     a.equal(#env.dispatched, 3)
     for _, message in ipairs(env.dispatched) do
       a.dispatch(message, "layout", "_refresh")

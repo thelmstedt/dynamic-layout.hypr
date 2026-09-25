@@ -8,7 +8,7 @@ local util = require("dynamic_layout.framework.util")
 ---@field order         string[]
 ---@field addresses     table<string, string>
 ---@field reflect       boolean
----@field active_layout LayoutStrategy
+---@field active_layout string
 ---@field layout_state  table<string, LayoutStrategyState>
 ---@field selected_id?  string
 
@@ -37,7 +37,7 @@ function Store.new_workspace(registry)
         order = {},
         addresses = {},
         reflect = false,
-        active_layout = registry.layouts[1],
+        active_layout = registry.layouts[1].name,
         layout_state = layout_state
     }
 end
@@ -130,7 +130,7 @@ end
 ---@return string
 function Store.layout_label(ws)
     local layout = ws.active_layout
-    local label = util.ratio_label(layout.name:upper(), ws.layout_state[layout.name].ratio)
+    local label = util.ratio_label(layout:upper(), ws.layout_state[layout].ratio)
     return ws.reflect and (label .. ":R") or label
 end
 

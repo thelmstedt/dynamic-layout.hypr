@@ -1,4 +1,5 @@
 local a = require("tests.support.assertions")
+local json = require("dynamic_layout.vendor.json")
 local fixture = require("tests.support.fixtures")
 
 return {
@@ -34,11 +35,20 @@ return {
     for _, field in ipairs({ "store", "definition", "publish" }) do
       a.equal(controller[field], nil)
     end
-    a.equal(a.read(state_root .. "/dynamic-layout.hypr/settings"):sub(1, 1), "#")
-    a.equal(a.read(state_root .. "/dynamic-layout.hypr/status"), "")
-    a.write(state_root .. "/dynamic-layout.hypr/status", "stale addresses")
+    a.equal(json.decode(a.read(state_root .. "/dynamic-layout.hypr/state.json")).version, 1)
+    a.equal(#json.decode(a.read(state_root .. "/dynamic-layout.hypr/state.json")).workspaces, 0)
+    a.write(state_root .. "/dynamic-layout.hypr/state.json", json.encode({ version = 1, workspaces = { ["id:7"] = {
+      active_layout = "tall", reflect = true, order = { "old" },
+      layout_state = { tall = { ratio = 0.63 }, wide = { ratio = 0.5 }, three_col = { ratio = 1 / 3, focus_row = 1 }, fullscreen = {} }, addresses = { old = "stale" }, selected_id = "old"
+    }} }))
     require("dynamic_layout").setup()
-    a.equal(a.read(state_root .. "/dynamic-layout.hypr/status"), "")
+    local saved = json.decode(a.read(state_root .. "/dynamic-layout.hypr/state.json")).workspaces["id:7"]
+    a.equal(saved.active_layout, "tall")
+    a.equal(saved.reflect, true)
+    a.equal(saved.layout_state.tall.ratio, 0.63)
+    a.equal(saved.selected_id, nil)
+    a.equal(next(saved.addresses), nil)
+    a.equal(#saved.order, 0)
   end,
 
 }

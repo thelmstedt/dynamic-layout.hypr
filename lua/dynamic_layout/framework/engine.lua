@@ -8,15 +8,12 @@ local Engine = {}
 ---@class LayoutEngineOptions
 ---@field registry    LayoutRegistry
 ---@field state_path  string
----@field status_path string
 
 ---@param options LayoutEngineOptions
 ---@return LayoutController
 function Engine.register(options)
     assert(options.registry, "layout registry is required")
     assert(type(options.state_path) == "string" and options.state_path ~= "", "layout state path is required")
-    assert(type(options.status_path) == "string" and options.status_path ~= "", "layout status path is required")
-    assert(options.state_path ~= options.status_path, "state and status paths must differ")
 
     local name = "dynamic"
     local registry = options.registry
@@ -28,11 +25,9 @@ function Engine.register(options)
     end
     Persistence.load(store, options.state_path, report)
     Store.prune(store, hl.get_windows())
-    local settings_writer = Persistence.writer(options.state_path, report)
-    local status_writer = Persistence.writer(options.status_path, report)
+    local writer = Persistence.writer(options.state_path, report)
     local function publish()
-        Persistence.write(settings_writer, Persistence.settings(store))
-        Persistence.write(status_writer, Persistence.status(store))
+        Persistence.write(writer, Persistence.snapshot(store))
     end
     -- Hyprland has no separate Lua recalculation request. This message carries
     -- no operation: controller methods have already changed workspace state.
@@ -75,7 +70,7 @@ function Engine.register(options)
         local targets, order = Store.sync_order(ws, layout_context)
         if #order == 0 then return end
 
-        ws.active_layout.place(ws.layout_state[ws.active_layout.name], layout_context, targets, {
+        registry.by_name[ws.active_layout].place(ws.layout_state[ws.active_layout], layout_context, targets, {
             active_id = Store.active_id(ws, layout_context),
             order = order,
             reflect = ws.reflect
@@ -94,7 +89,7 @@ function Engine.register(options)
         end
         local ws = Store.workspace(store, layout_context, hl.get_active_workspace())
         if not ws then return name .. ": no workspace for layout message" end
-        ws.active_layout = selected_layout
+        ws.active_layout = selected_layout.name
 
         publish()
         return true
@@ -124,12 +119,13 @@ function Engine.register(options)
         local ws = Store.workspace_for_window(store, window)
         local id = window_id(window)
         if ws and util.index_of(ws.order, id) and is_managed_layout(window) then
-            local strategy = ws.active_layout
+            local strategy = registry.by_name[ws.active_layout]
             if strategy.on_focused_changed then
                 strategy.on_focused_changed(ws.layout_state[strategy.name], ws.order, id)
             end
             ws.selected_id = id
-            if ws.active_layout.needs_focus_recalculate then
+            publish()
+            if strategy.needs_focus_recalculate then
                 refresh()
             end
         end
@@ -138,14 +134,14 @@ function Engine.register(options)
     ---@param ws LayoutWorkspaceState
     ---@param next boolean
     local function cycle_layout(ws, next)
-        local current = util.index_of(layouts, ws.active_layout) or 1
+        local current = util.index_of(registry.names, ws.active_layout) or 1
         local target = next and current + 1 or current - 1
         if target > #layouts then
             target = 1
         elseif target < 1 then
             target = #layouts
         end
-        ws.active_layout = layouts[target]
+        ws.active_layout = layouts[target].name
     end
 
     ---@param ws LayoutWorkspaceState
@@ -158,7 +154,7 @@ function Engine.register(options)
     ---@param delta number
     ---@return false|nil
     local function resize(ws, delta)
-        local state = ws.layout_state[ws.active_layout.name]
+        local state = ws.layout_state[ws.active_layout]
         if state.ratio == nil then return false end
         util.resize_ratio(state, delta, workspace_context(ws))
     end
@@ -196,7 +192,7 @@ function Engine.register(options)
     ---@return false|nil
     local function set_ratio(ws, ratio)
         assert(type(ratio) == "number" and ratio >= 0.1 and ratio <= 0.9, "ratio must be a number between 0.1 and 0.9")
-        local state = ws.layout_state[ws.active_layout.name]
+        local state = ws.layout_state[ws.active_layout]
         if state.ratio == nil then return false end
         util.set_ratio(state, ratio)
     end
@@ -244,7 +240,7 @@ function Engine.register(options)
 
         ---@type WorkspaceContext
         local workspace = { active_id = window_id(window), order = ws.order, reflect = ws.reflect }
-        local strategy = ws.active_layout
+        local strategy = registry.by_name[ws.active_layout]
         local neighbor = strategy.neighbor(
             ws.layout_state[strategy.name], direction, workspace, true
         )
@@ -254,7 +250,7 @@ function Engine.register(options)
     ---@param ws LayoutWorkspaceState
     ---@param direction LayoutDirection
     local function swap_direction(ws, direction)
-        local strategy = ws.active_layout
+        local strategy = registry.by_name[ws.active_layout]
         local neighbor = strategy.neighbor(
             ws.layout_state[strategy.name], direction, workspace_context(ws), false
         )

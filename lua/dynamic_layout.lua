@@ -52,8 +52,7 @@ function M.setup()
 
     return Engine.register({
         registry = registry,
-        state_path = (directory .. "/settings"),
-        status_path = (directory .. "/status")
+        state_path = (directory .. "/state.json")
     })
 end
 
