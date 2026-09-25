@@ -5,6 +5,7 @@ local util = require("dynamic_layout.framework.util")
 ---@type LayoutStrategy<FullscreenState>
 local strategy = {
     name = "fullscreen",
+    single_window = true,
     needs_focus_recalculate = true,
 
     new_state = function ()

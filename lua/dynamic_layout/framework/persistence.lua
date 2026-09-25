@@ -132,7 +132,7 @@ function M.status(store)
         if id then
             local ws = store.workspaces[key]
             -- Single-window mode is layout information, not a request to draw tabs.
-            local fields = { id, Store.layout_label(ws), ws.active_layout.name == "fullscreen" and "1" or "0" }
+            local fields = { id, Store.layout_label(ws), ws.active_layout.single_window and "1" or "0" }
             for _, window_id in ipairs(ws.order) do
                 if ws.addresses[window_id] then fields[#fields + 1] = ws.addresses[window_id] end
             end

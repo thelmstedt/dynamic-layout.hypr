@@ -78,6 +78,28 @@ return {
         a.equal(Persistence.status(store), "7 TALL@0.610:R 0 abc def\n")
     end,
 
+    ["single-window status follows the capability rather than the name"] = function ()
+        local Registry = require("dynamic_layout.framework.registry")
+        local fullscreen = require("dynamic_layout.strategies.fullscreen")
+        local custom = {
+            name = "custom",
+            single_window = true,
+            new_state = fullscreen.new_state,
+            place = fullscreen.place,
+            neighbor = fullscreen.neighbor
+        }
+        local store = Store.new(Registry.new({ custom }))
+        local ws = assert(Store.for_workspace(store, { id = 7 }))
+        a.equal(Persistence.status(store), "7 CUSTOM 1\n")
+        custom.single_window = false
+        a.equal(Persistence.status(store), "7 CUSTOM 0\n")
+        custom.single_window = nil
+        a.equal(Persistence.status(store), "7 CUSTOM 0\n")
+        custom.name = "fullscreen"
+        ws.layout_state.fullscreen = {}
+        a.equal(Persistence.status(store), "7 FULLSCREEN 0\n")
+    end,
+
     ["unchanged snapshots do not rewrite files"] = function ()
         local store = fixture.store()
         local writer = Persistence.writer(fixture.path("settings"), a.unexpected)

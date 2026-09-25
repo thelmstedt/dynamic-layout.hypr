@@ -3,6 +3,7 @@ local Registry = {}
 
 ---@class LayoutStrategy<S>
 ---@field name                     string
+---@field single_window?           boolean Whether only one window is visible at a time; defaults to false.
 ---@field needs_focus_recalculate? boolean
 ---@field new_state                fun(): S
 ---@field neighbor                 fun(state: S, direction: LayoutDirection, workspace: WorkspaceContext, focus?: boolean): string?
@@ -24,6 +25,10 @@ local function validate(strategy, index)
     assert(
         strategy.on_focused_changed == nil or type(strategy.on_focused_changed) == "function",
         name .. ".on_focused_changed must be a function"
+    )
+    assert(
+        strategy.single_window == nil or type(strategy.single_window) == "boolean",
+        name .. ".single_window must be a boolean"
     )
 end
 
