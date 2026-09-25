@@ -246,7 +246,7 @@ function Engine.register(options)
         local workspace = { active_id = window_id(window), order = ws.order, reflect = ws.reflect }
         local strategy = ws.active_layout
         local neighbor = strategy.neighbor(
-            ws.layout_state[strategy.name], ws.order, workspace.active_id, direction, workspace, true
+            ws.layout_state[strategy.name], direction, workspace, true
         )
         focus_window(ws, neighbor)
     end
@@ -256,7 +256,7 @@ function Engine.register(options)
     local function swap_direction(ws, direction)
         local strategy = ws.active_layout
         local neighbor = strategy.neighbor(
-            ws.layout_state[strategy.name], ws.order, ws.selected_id, direction, workspace_context(ws), false
+            ws.layout_state[strategy.name], direction, workspace_context(ws), false
         )
         Store.swap_active_with(ws, ws.selected_id, neighbor)
     end

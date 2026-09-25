@@ -108,8 +108,6 @@ function M.settings(store)
         local fields = { encode(key), encode(Store.layout_label(ws)) }
         for _, strategy in ipairs(store.registry.layouts) do
             local state = ws.layout_state[strategy.name]
-            fields[#fields + 1] = strategy.name .. "=" .. encode(util.ratio_label(strategy.name:upper(), state.ratio))
-            -- Status labels are rounded for display; settings must retain exact ratios.
             if state.ratio then
                 fields[#fields + 1] = strategy.name .. ".ratio=" .. string.format("%.17g", state.ratio)
             end

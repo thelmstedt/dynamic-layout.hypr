@@ -99,42 +99,42 @@ return {
 
     ["tall neighbors follow master and stack geometry"] = function ()
         local ids = { "a", "b", "c" }
-        local workspace = { order = ids, reflect = false }
-        a.equal(tall.neighbor(tall.new_state(), ids, "a", "r", workspace, false), "b")
-        a.equal(tall.neighbor(tall.new_state(), ids, "c", "u", workspace, false), "b")
-        a.equal(tall.neighbor(tall.new_state(), ids, "b", "l", workspace, false), "a")
+        a.equal(tall.neighbor(tall.new_state(), "r", { active_id = "a", order = ids, reflect = false }), "b")
+        a.equal(tall.neighbor(tall.new_state(), "u", { active_id = "c", order = ids, reflect = false }), "b")
+        a.equal(tall.neighbor(tall.new_state(), "l", { active_id = "b", order = ids, reflect = false }), "a")
     end,
 
     ["three-column neighbors respect reflection and boundaries"] = function ()
         local ids = { "master", "left1", "right1", "left2", "right2" }
-        a.equal(three_col.neighbor(three_col.new_state(), ids, "master", "l", { order = ids, reflect = false }, false), "left1")
-        a.equal(three_col.neighbor(three_col.new_state(), ids, "master", "r", { order = ids, reflect = false }, false), "right1")
-        a.equal(three_col.neighbor(three_col.new_state(), ids, "left1", "d", { order = ids, reflect = false }, false), "left2")
-        a.equal(three_col.neighbor(three_col.new_state(), ids, "master", "l", { order = ids, reflect = true }, false), "right1")
+        a.equal(three_col.neighbor(three_col.new_state(), "l", { active_id = "master", order = ids, reflect = false }), "left1")
+        a.equal(three_col.neighbor(three_col.new_state(), "r", { active_id = "master", order = ids, reflect = false }), "right1")
+        a.equal(three_col.neighbor(three_col.new_state(), "d", { active_id = "left1", order = ids, reflect = false }), "left2")
+        a.equal(three_col.neighbor(three_col.new_state(), "l", { active_id = "master", order = ids, reflect = true }), "right1")
         for _, reflect in ipairs({ false, true }) do
-            local workspace = { order = ids, reflect = reflect }
-            a.equal(three_col.neighbor(three_col.new_state(), ids, "left1", "u", workspace, false), nil)
-            a.equal(three_col.neighbor(three_col.new_state(), ids, "right1", "u", workspace, false), nil)
-            a.equal(three_col.neighbor(three_col.new_state(), ids, "right2", "u", workspace, false), "right1")
-            a.equal(three_col.neighbor(three_col.new_state(), ids, "right2", "d", workspace, false), nil)
+            local workspace = { active_id = "left1", order = ids, reflect = reflect }
+            a.equal(three_col.neighbor(three_col.new_state(), "u", workspace), nil)
+            workspace.active_id = "right1"
+            a.equal(three_col.neighbor(three_col.new_state(), "u", workspace), nil)
+            workspace.active_id = "right2"
+            a.equal(three_col.neighbor(three_col.new_state(), "u", workspace), "right1")
+            a.equal(three_col.neighbor(three_col.new_state(), "d", workspace), nil)
         end
     end,
 
     ["three-column tracks its row independently of swaps and other workspaces"] = function ()
         local ids = { "master", "left1", "right1", "left2", "right2" }
         local state, other = three_col.new_state(), three_col.new_state()
-        local workspace = { order = ids, reflect = false }
-        a.equal(three_col.neighbor(state, ids, "left2", "r", workspace, true), "master")
-        three_col.on_focused_changed(state, ids,"master")
-        a.equal(three_col.neighbor(state, ids, "master", "r", workspace, false), "right1")
-        a.equal(three_col.neighbor(other, ids, "master", "r", workspace, true), "right1")
-        a.equal(three_col.neighbor(state, ids, "master", "r", workspace, true), "right2")
+        a.equal(three_col.neighbor(state, "r", { active_id = "left2", order = ids, reflect = false }, true), "master")
+        three_col.on_focused_changed(state, ids, "master")
+        a.equal(three_col.neighbor(state, "r", { active_id = "master", order = ids, reflect = false }, false), "right1")
+        a.equal(three_col.neighbor(other, "r", { active_id = "master", order = ids, reflect = false }, true), "right1")
+        a.equal(three_col.neighbor(state, "r", { active_id = "master", order = ids, reflect = false }, true), "right2")
         local short = { "master", "left1", "right1", "left2" }
-        a.equal(three_col.neighbor(state, short, "left2", "r", workspace, true), "master")
-        a.equal(three_col.neighbor(state, short, "master", "r", workspace, true), "right1")
-        three_col.neighbor(state, ids, "left2", "r", workspace, true)
+        a.equal(three_col.neighbor(state, "r", { active_id = "left2", order = short, reflect = false }, true), "master")
+        a.equal(three_col.neighbor(state, "r", { active_id = "master", order = short, reflect = false }, true), "right1")
+        three_col.neighbor(state, "r", { active_id = "left2", order = ids, reflect = false }, true)
         three_col.on_focused_changed(state, ids, "left1")
-        a.equal(three_col.neighbor(state, ids, "master", "r", workspace, true), "right1")
+        a.equal(three_col.neighbor(state, "r", { active_id = "master", order = ids, reflect = false }, true), "right1")
     end,
 
     ["three-column fills the area as windows are added and removed"] = function ()
@@ -179,7 +179,7 @@ return {
                 a.near(edge, layout_context.area.x + layout_context.area.w)
                 if count == 2 then
                     a.near(boxes["1"].x, reflect and 10 or 610)
-                    a.equal(three_col.neighbor(three_col.new_state(), ids, "1", reflect and "r" or "l", { order = ids, reflect = reflect }, false), "2")
+                    a.equal(three_col.neighbor(three_col.new_state(), reflect and "r" or "l", { active_id = "1", order = ids, reflect = reflect }, false), "2")
                 end
             end
         end

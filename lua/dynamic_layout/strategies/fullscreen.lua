@@ -11,8 +11,9 @@ local strategy = {
         return {}
     end,
 
-    neighbor = function (_, ids, active_id, direction)
-        local index = util.index_of(ids, active_id)
+    neighbor = function (_, direction, workspace)
+        local ids = workspace.order
+        local index = util.index_of(ids, workspace.active_id)
         if not index then return nil end
         if direction == "l" or direction == "u" then return ids[index - 1] end
         if direction == "r" or direction == "d" then return ids[index + 1] end

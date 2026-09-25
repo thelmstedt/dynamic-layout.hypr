@@ -11,8 +11,9 @@ local strategy = {
         return { ratio = 0.5 }
     end,
 
-    neighbor = function (_, ids, active_id, direction, workspace)
-        local index = util.index_of(ids, active_id)
+    neighbor = function (_, direction, workspace)
+        local ids = workspace.order
+        local index = util.index_of(ids, workspace.active_id)
         if not index then return nil end
 
         local toward_stack = workspace.reflect and "l" or "r"
@@ -41,18 +42,12 @@ local strategy = {
             return
         end
 
-        local reflect = workspace.reflect
-        if reflect then
-            master:place(layout_context:split(layout_context.area, "right", state.ratio))
-            util.place_stack(
-                layout_context, targets, { table.unpack(ids, 2) }, layout_context:split(layout_context.area, "left", 1 - state.ratio), "vertical"
-            )
-        else
-            master:place(layout_context:split(layout_context.area, "left", state.ratio))
-            util.place_stack(
-                layout_context, targets, { table.unpack(ids, 2) }, layout_context:split(layout_context.area, "right", 1 - state.ratio), "vertical"
-            )
-        end
+        local master_side = workspace.reflect and "right" or "left"
+        local stack_side = workspace.reflect and "left" or "right"
+        master:place(layout_context:split(layout_context.area, master_side, state.ratio))
+        util.place_stack(
+            layout_context, targets, ids, layout_context:split(layout_context.area, stack_side, 1 - state.ratio), "vertical", 2
+        )
     end,
 }
 

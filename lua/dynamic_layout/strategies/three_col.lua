@@ -30,7 +30,9 @@ local strategy = {
         return { ratio = 1 / 3, focus_row = 1 }
     end,
 
-    neighbor = function (state, ids, active_id, direction, workspace, focus)
+    neighbor = function (state, direction, workspace, focus)
+        local ids = workspace.order
+        local active_id = workspace.active_id
         local index = util.index_of(ids, active_id)
         if not index then return nil end
 

@@ -5,7 +5,7 @@ local Registry = {}
 ---@field name                     string
 ---@field needs_focus_recalculate? boolean
 ---@field new_state                fun(): S
----@field neighbor                 fun(state: S, ids: string[], active_id: string?, direction: LayoutDirection, workspace: WorkspaceContext, focus: boolean): string?
+---@field neighbor                 fun(state: S, direction: LayoutDirection, workspace: WorkspaceContext, focus?: boolean): string?
 ---@field on_focused_changed?      fun(state: S, ids: string[], active_id: string?)
 ---@field place                    fun(state: S, layout_context: HL.LayoutContext, targets: table<string, HL.LayoutTarget>, workspace: WorkspaceContext)
 

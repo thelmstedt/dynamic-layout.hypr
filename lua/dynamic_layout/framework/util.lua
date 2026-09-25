@@ -69,17 +69,22 @@ end
 ---@param ids string[]
 ---@param area HL.Box
 ---@param orientation "vertical" | "horizontal"
-function M.place_stack(layout_context, targets, ids, area, orientation)
+---@param start_index? integer
+function M.place_stack(layout_context, targets, ids, area, orientation, start_index)
     assert(
         orientation == "vertical" or orientation == "horizontal", "invalid stack orientation: " .. tostring(orientation)
     )
+    start_index = start_index or 1
+    local total = #ids
+    local remaining = total - start_index + 1
+    if remaining <= 0 then return end
     local remaining_area = area
-    local remaining = #ids
 
-    for i, id in ipairs(ids) do
+    for i = start_index, total do
+        local id = ids[i]
         local target = targets[id]
         if target then
-            if i == #ids then
+            if i == total then
                 target:place(remaining_area)
             elseif orientation == "vertical" then
                 target:place(layout_context:split(remaining_area, "top", 1 / remaining))
