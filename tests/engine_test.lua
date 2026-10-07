@@ -4,6 +4,40 @@ local Store = require("dynamic_layout.framework.store")
 local Persistence = require("dynamic_layout.framework.persistence")
 
 return {
+    ["global resize step applies across layouts"] = function ()
+        local mirror = require("dynamic_layout.strategies.mirror")
+        local tiled = require("dynamic_layout.strategies.tall")("tall")
+        local registry = require("dynamic_layout.framework.registry").new({
+            tiled,
+            mirror(tiled, "wide"),
+            require("dynamic_layout.strategies.fullscreen")("fullscreen"),
+        })
+        local env = fixture.engine(3, registry, 0.07)
+        fixture.focus(env, 1)
+        for _, name in ipairs({ "tall", "wide" }) do
+            env.registered.dynamic.layout_msg(env.context, name)
+            env.controller.grow()
+            a.near(env.ws.layout_state[name].ratio, 0.57)
+            env.controller.shrink()
+            a.near(env.ws.layout_state[name].ratio, 0.5)
+        end
+        -- Focusing a non-master window does not change what grow does.
+        fixture.focus(env, 2)
+        env.controller.grow()
+        a.near(env.ws.layout_state.wide.ratio, 0.57)
+    end,
+
+    ["invalid global resize steps fail before registration"] = function ()
+        for _, delta in ipairs({ 0, -0.01, math.huge, 0 / 0, "0.03", false }) do
+            local env = fixture.hyprland()
+            local ok, err = pcall(require("dynamic_layout.framework.engine").register, {
+                registry = fixture.registry(), state_path = fixture.path("invalid"), resize_delta = delta,
+            })
+            a.equal(ok, false)
+            assert(tostring(err):find("resize_delta must be a positive finite number", 1, true))
+            a.equal(next(env.registered), nil)
+        end
+    end,
     ["window reordering survives repeated config reloads with partial target lists"] = function ()
         local env = fixture.engine()
         fixture.focus(env, 3)
@@ -60,7 +94,8 @@ return {
 
     ["fullscreen retains selection when workspace loses focus"] = function ()
         local env = fixture.engine()
-        a.equal(Store.layout_label(env.ws), "FULLSCREEN")
+        a.equal(env.ws.active_layout, "fullscreen")
+        a.equal(env.ws.reflect, false)
         a.box(env.boxes[2], { x = 0, y = 0, w = 100, h = 100 })
         assert(env.boxes[1].x < 0 and env.boxes[3].x < 0)
         fixture.focus(env, nil)
@@ -159,11 +194,16 @@ return {
         local env = fixture.engine()
         env.focused_workspace = { id = 11 }
         env.controller.reflect()
-        a.equal(Store.layout_label(env.ws), "FULLSCREEN")
-        a.equal(Store.layout_label(env.store.workspaces["id:11"]), "TALL@0.500:R")
+        a.equal(env.ws.active_layout, "fullscreen")
+        a.equal(env.ws.reflect, false)
+        a.equal(env.store.workspaces["id:11"].active_layout, "tall")
+        a.equal(env.store.workspaces["id:11"].reflect, true)
+        a.near(env.store.workspaces["id:11"].layout_state.tall.ratio, 0.500)
         local restored = Store.new(fixture.registry())
         Persistence.load(restored, env.state_path, a.unexpected)
-        a.equal(Store.layout_label(restored.workspaces["id:11"]), "TALL@0.500:R")
+        a.equal(restored.workspaces["id:11"].active_layout, "tall")
+        a.equal(restored.workspaces["id:11"].reflect, true)
+        a.near(restored.workspaces["id:11"].layout_state.tall.ratio, 0.500)
         a.equal(Store.workspace(restored, env.empty), nil)
     end,
 
@@ -191,7 +231,9 @@ return {
         a.equal(other.layout_state.tall.ratio, 0.65)
         local restored = Store.new(fixture.registry())
         Persistence.load(restored, env.state_path, a.unexpected)
-        a.equal(Store.layout_label(restored.workspaces["id:10"]), "WIDE@0.500")
+        a.equal(restored.workspaces["id:10"].active_layout, "wide")
+        a.equal(restored.workspaces["id:10"].reflect, false)
+        a.near(restored.workspaces["id:10"].layout_state.wide.ratio, 0.500)
         a.equal(restored.workspaces["id:10"].layout_state.three_col.ratio, 1 / 3)
     end,
 

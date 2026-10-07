@@ -1,54 +1,60 @@
 local util = require("dynamic_layout.framework.util")
 
----@class TallState
+---@class MasterStackState
 ---@field ratio number
 
----@type LayoutStrategy<TallState>
-local strategy = {
-    name = "tall",
+---@class MasterStackOptions
+---@field ratio?   number  Master column's share of the area; defaults to 0.5.
+---@field nmaster? integer Windows in the master column; defaults to 1.
 
-    new_state = function ()
-        return { ratio = 0.5 }
-    end,
+-- Master column on the left holding the first `nmaster` windows, the rest stacked
+-- on the right. The only master/stack implementation; mirror it for a horizontal
+-- variant. Follows xmonad's Tall: with no stack, the masters fill the whole area.
+---@param name string
+---@param options? MasterStackOptions
+---@return LayoutStrategy<MasterStackState>
+return function (name, options)
+    assert(type(name) == "string" and name ~= "", "master/stack layout requires a name")
+    options = options or {}
+    local ratio = options.ratio or 0.5
+    local nmaster = options.nmaster or 1
+    assert(type(ratio) == "number" and ratio > 0 and ratio < 1, "ratio must be between 0 and 1")
+    assert(type(nmaster) == "number" and nmaster >= 1 and nmaster % 1 == 0, "nmaster must be a positive integer")
 
-    neighbor = function (_, direction, workspace)
-        local ids = workspace.order
-        local index = util.index_of(ids, workspace.active_id)
-        if not index then return nil end
+    return {
+        name = name,
+        reflect_axis = "x",
 
-        local toward_stack = workspace.reflect and "l" or "r"
-        local toward_master = workspace.reflect and "r" or "l"
-        if index == 1 then
-            return direction == toward_stack and ids[2] or nil
-        elseif direction == toward_master then
-            return ids[1]
-        elseif direction == "u" then
-            return index > 2 and ids[index - 1] or nil
-        elseif direction == "d" then
-            return ids[index + 1]
-        end
-    end,
+        new_state = function ()
+            return { ratio = ratio }
+        end,
 
-    place = function (state, layout_context, targets, workspace)
-        local ids = workspace.order
-        local master_id = ids[1]
-        local master = targets[master_id]
-        if not master then
-            return
-        end
+        geometry = function (state, context, workspace)
+            local ids = workspace.order
+            local count = #ids
+            if count == 0 then return {} end
 
-        if #ids == 1 then
-            master:place(layout_context.area)
-            return
-        end
+            -- No stack: the master windows fill the whole area.
+            if count <= nmaster then
+                return util.stack_boxes(context, ids, context.area, "vertical")
+            end
 
-        local master_side = workspace.reflect and "right" or "left"
-        local stack_side = workspace.reflect and "left" or "right"
-        master:place(layout_context:split(layout_context.area, master_side, state.ratio))
-        util.place_stack(
-            layout_context, targets, ids, layout_context:split(layout_context.area, stack_side, 1 - state.ratio), "vertical", 2
-        )
-    end,
-}
+            local master_ids, stack_ids = {}, {}
+            for i = 1, count do
+                if i <= nmaster then
+                    master_ids[#master_ids + 1] = ids[i]
+                else
+                    stack_ids[#stack_ids + 1] = ids[i]
+                end
+            end
 
-return strategy
+            ---@type table<string, HL.Box>
+            local geometry = {}
+            local master_area = context:split(context.area, "left", state.ratio)
+            local stack_area = context:split(context.area, "right", 1 - state.ratio)
+            for id, box in pairs(util.stack_boxes(context, master_ids, master_area, "vertical")) do geometry[id] = box end
+            for id, box in pairs(util.stack_boxes(context, stack_ids, stack_area, "vertical")) do geometry[id] = box end
+            return geometry
+        end,
+    }
+end

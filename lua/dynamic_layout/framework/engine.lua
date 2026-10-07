@@ -1,5 +1,6 @@
 local Store = require("dynamic_layout.framework.store")
 local Persistence = require("dynamic_layout.framework.persistence")
+local geometric = require("dynamic_layout.framework.geometric")
 local util = require("dynamic_layout.framework.util")
 
 ---@class LayoutEngineModule
@@ -8,6 +9,7 @@ local Engine = {}
 ---@class LayoutEngineOptions
 ---@field registry    LayoutRegistry
 ---@field state_path  string
+---@field resize_delta? number Positive finite grow/shrink step; defaults to 0.03.
 
 ---@param options LayoutEngineOptions
 ---@return LayoutController
@@ -15,10 +17,20 @@ function Engine.register(options)
     assert(options.registry, "layout registry is required")
     assert(type(options.state_path) == "string" and options.state_path ~= "", "layout state path is required")
 
+    local resize_delta = options.resize_delta
+    if resize_delta == nil then resize_delta = 0.03 end
+    assert(type(resize_delta) == "number" and resize_delta > 0 and resize_delta < math.huge,
+        "resize_delta must be a positive finite number")
+
     local name = "dynamic"
     local registry = options.registry
     local layouts = registry.layouts
     local store = Store.new(registry)
+    -- Last placement area per workspace, so navigation can recompute geometry
+    -- between placements, when Hyprland's layout context is unavailable. Weak
+    -- keys keep this ephemeral and out of persisted state.
+    ---@type table<LayoutWorkspaceState, HL.Box>
+    local areas = setmetatable({}, { __mode = "k" })
     ---@param message string
     local function report(message)
         print("dynamic_layout: " .. message)
@@ -57,6 +69,21 @@ function Engine.register(options)
         if address then hl.dispatch(hl.dsp.focus({ window = "address:" .. address })) end
     end
 
+    -- Canonical geometry from the active strategy, mirrored by the framework
+    -- when the workspace is reflected. Shared by placement and navigation.
+    ---@param ws LayoutWorkspaceState
+    ---@param area HL.Box
+    ---@param workspace WorkspaceContext
+    ---@return table<string, HL.Box>
+    local function geometry_for(ws, area, workspace)
+        local strategy = registry.by_name[ws.active_layout]
+        local geometry = strategy.geometry(ws.layout_state[strategy.name], util.context(area), workspace)
+        if strategy.reflect_axis and workspace.reflect then
+            geometry = geometric.reflect(geometry, strategy.reflect_axis, area)
+        end
+        return geometry
+    end
+
     ---@param layout_context HL.LayoutContext
     local function recalculate(layout_context)
         Store.prune(store, hl.get_windows())
@@ -70,12 +97,41 @@ function Engine.register(options)
         local targets, order = Store.sync_order(ws, layout_context)
         if #order == 0 then return end
 
-        registry.by_name[ws.active_layout].place(ws.layout_state[ws.active_layout], layout_context, targets, {
+        local area = layout_context.area
+        areas[ws] = { x = area.x, y = area.y, w = area.w, h = area.h }
+        local geometry = geometry_for(ws, areas[ws], {
             active_id = Store.active_id(ws, layout_context),
             order = order,
             reflect = ws.reflect
         })
+        for _, id in ipairs(order) do
+            local target, box = targets[id], geometry[id]
+            if target and box then target:place(box) end
+        end
         publish()
+    end
+
+    -- Resolve a directional neighbor, preferring a strategy's own navigation and
+    -- otherwise deriving it from the geometry the strategy would produce now.
+    -- Reflection is a framework transform: mirroring the direction lets strategies
+    -- navigate canonical geometry, the same geometry they return from `geometry`.
+    ---@param ws LayoutWorkspaceState
+    ---@param direction LayoutDirection
+    ---@param workspace WorkspaceContext
+    ---@param purpose "focus"|"swap"
+    ---@return string?
+    local function neighbor_of(ws, direction, workspace, purpose)
+        local strategy = registry.by_name[ws.active_layout]
+        if strategy.reflect_axis and workspace.reflect then
+            direction = geometric.flip(direction, strategy.reflect_axis)
+        end
+        if strategy.neighbor then
+            return strategy.neighbor(ws.layout_state[strategy.name], direction, workspace, purpose)
+        end
+        local area = areas[ws]
+        if not area then return nil end
+        local geometry = strategy.geometry(ws.layout_state[strategy.name], util.context(area), workspace)
+        return geometric.nearest(geometry, workspace.order, workspace.active_id, direction)
     end
 
     ---@param layout_context HL.LayoutContext
@@ -151,12 +207,12 @@ function Engine.register(options)
     end
 
     ---@param ws LayoutWorkspaceState
-    ---@param delta number
+    ---@param direction number
     ---@return false|nil
-    local function resize(ws, delta)
+    local function resize(ws, direction)
         local state = ws.layout_state[ws.active_layout]
         if state.ratio == nil then return false end
-        util.resize_ratio(state, delta, workspace_context(ws))
+        util.resize_ratio(state, direction * resize_delta)
     end
 
     ---@param ws LayoutWorkspaceState
@@ -228,9 +284,9 @@ function Engine.register(options)
         Store.swap_active(ws, ws.selected_id, next)
     end
 
-    --- Resolve the focus neighbor, including strategy-specific navigation history.
+    --- Move focus to the directional neighbor, following navigation history.
     ---@param direction LayoutDirection
-    local function move_direction(direction)
+    local function focus_direction(direction)
         local window = hl.get_active_window()
         local ws = Store.workspace_for_window(store, window)
         if not ws or not is_managed_layout(window) then
@@ -240,21 +296,13 @@ function Engine.register(options)
 
         ---@type WorkspaceContext
         local workspace = { active_id = window_id(window), order = ws.order, reflect = ws.reflect }
-        local strategy = registry.by_name[ws.active_layout]
-        local neighbor = strategy.neighbor(
-            ws.layout_state[strategy.name], direction, workspace, true
-        )
-        focus_window(ws, neighbor)
+        focus_window(ws, neighbor_of(ws, direction, workspace, "focus"))
     end
 
     ---@param ws LayoutWorkspaceState
     ---@param direction LayoutDirection
     local function swap_direction(ws, direction)
-        local strategy = registry.by_name[ws.active_layout]
-        local neighbor = strategy.neighbor(
-            ws.layout_state[strategy.name], direction, workspace_context(ws), false
-        )
-        Store.swap_active_with(ws, ws.selected_id, neighbor)
+        Store.swap_active_with(ws, ws.selected_id, neighbor_of(ws, direction, workspace_context(ws), "swap"))
     end
 
     ---@return LayoutWorkspaceState?
@@ -296,8 +344,8 @@ function Engine.register(options)
         name = name,
         reset = action(reset),
         reflect = action(reflect),
-        grow = action(function (ws) return resize(ws, 0.03) end),
-        shrink = action(function (ws) return resize(ws, -0.03) end),
+        grow = action(function (ws) return resize(ws, 1) end),
+        shrink = action(function (ws) return resize(ws, -1) end),
         promote = action(promote),
         demote = action(demote),
         swap_with_master = action(swap_with_master),
@@ -310,7 +358,7 @@ function Engine.register(options)
         set_ratio = action(set_ratio),
         cycle_focus = cycle_focus,
         swap_active = action(swap_active),
-        move_direction = move_direction,
+        focus_direction = focus_direction,
         swap_direction = action(swap_direction)
     }
     return controller
@@ -334,7 +382,7 @@ end
 ---@field set_ratio        fun(ratio: number)
 ---@field cycle_focus      fun(next: boolean)
 ---@field swap_active      fun(next: boolean)
----@field move_direction   fun(direction: LayoutDirection)
+---@field focus_direction  fun(direction: LayoutDirection)
 ---@field swap_direction   fun(direction: LayoutDirection)
 
 return Engine

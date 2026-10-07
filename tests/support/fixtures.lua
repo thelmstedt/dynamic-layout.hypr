@@ -11,11 +11,13 @@ function M.path(name)
 end
 
 function M.registry()
+    local mirror = require("dynamic_layout.strategies.mirror")
+    local tall = require("dynamic_layout.strategies.tall")("tall")
     return Registry.new({
-        (require("dynamic_layout.strategies.tall")),
-        (require("dynamic_layout.strategies.wide")),
-        (require("dynamic_layout.strategies.three_col")),
-        (require("dynamic_layout.strategies.fullscreen"))
+        tall,
+        mirror(tall, "wide"),
+        require("dynamic_layout.strategies.three_col")("three_col"),
+        require("dynamic_layout.strategies.fullscreen")("fullscreen")
     })
 end
 
@@ -63,7 +65,7 @@ function M.hyprland()
     return env
 end
 
-function M.engine(window_count)
+function M.engine(window_count, registry, resize_delta)
     local env = M.hyprland()
     env.state_path = M.path("state.json")
     -- Capture the store at its construction boundary for internal state tests;
@@ -75,7 +77,8 @@ function M.engine(window_count)
         return env.store
     end
     local ok, controller = pcall(Engine.register, {
-        registry = M.registry(),
+        registry = registry or M.registry(),
+        resize_delta = resize_delta,
         state_path = env.state_path
     })
     Store.new = new_store

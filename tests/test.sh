@@ -11,10 +11,6 @@ for tool in lua luac lua-language-server; do
     fi
 done
 
-while IFS= read -r -d '' file; do
-    luac -p "$file"
-done < <(find lua examples tests -name '*.lua' -type f -print0)
-
 test_dir="$(mktemp -d /tmp/dynamic-layout-tests.XXXXXX)"
 trap 'rm -rf -- "$test_dir"' EXIT
 

@@ -7,11 +7,11 @@ local Persistence = require("dynamic_layout.framework.persistence")
 return {
     ["custom strategy fields round trip unchanged"] = function ()
         local Registry = require("dynamic_layout.framework.registry")
-        local fullscreen = require("dynamic_layout.strategies.fullscreen")
+        local fullscreen = require("dynamic_layout.strategies.fullscreen")("fullscreen")
         local registry = Registry.new({ {
             name = "custom",
             new_state = function() return { options = { count = 2, enabled = true } } end,
-            place = fullscreen.place,
+            geometry = fullscreen.geometry,
             neighbor = fullscreen.neighbor
         } })
         local store = Store.new(registry)
@@ -77,7 +77,7 @@ return {
         Persistence.load(restored, path, a.unexpected)
         a.equal(restored.workspaces[key].order[1], ws.order[1])
         a.equal(restored.workspaces[key].layout_state.three_col.ratio, 1 / 3)
-        local state = restored.workspaces[key].layout_state.three_col --[[@as ThreeColState]]
+        local state = restored.workspaces[key].layout_state.three_col --[[@as CenteredStackState]]
         a.equal(state.focus_row, 5)
         a.equal(json.decode(Persistence.snapshot(store)).workspaces[key].active_layout, ws.active_layout)
     end,
@@ -107,12 +107,13 @@ return {
             ws.reflect = true
             local state = ws.layout_state[strategy.name]
             if state.ratio then state.ratio = 0.637 end
-            local label = strategy.name:upper() .. (state.ratio and "@0.637" or "") .. ":R"
-            a.equal(Store.layout_label(ws), label)
             a.write(path, Persistence.snapshot(store))
             local restored = Store.new(registry)
             Persistence.load(restored, path, a.unexpected)
-            a.equal(Store.layout_label(restored.workspaces["id:7"]), label)
+            local loaded = restored.workspaces["id:7"]
+            a.equal(loaded.active_layout, strategy.name)
+            a.equal(loaded.reflect, true)
+            a.equal(loaded.layout_state[strategy.name].ratio, state.ratio)
 
         end
     end,
@@ -124,7 +125,8 @@ return {
         local restored = Store.new(fixture.registry())
         Persistence.load(restored, path, a.unexpected)
         local ws = restored.workspaces["id:7"]
-        a.equal(Store.layout_label(ws), "FULLSCREEN:R")
+        a.equal(ws.active_layout, "fullscreen")
+        a.equal(ws.reflect, true)
         a.equal(ws.layout_state.tall.ratio, 0.61)
         a.equal(ws.layout_state.wide.ratio, 0.72)
         a.equal(ws.layout_state.three_col.ratio, 1 / 3)
@@ -162,12 +164,12 @@ return {
 
     ["single-window status follows the capability rather than the name"] = function ()
         local Registry = require("dynamic_layout.framework.registry")
-        local fullscreen = require("dynamic_layout.strategies.fullscreen")
+        local fullscreen = require("dynamic_layout.strategies.fullscreen")("fullscreen")
         local custom = {
             name = "custom",
             single_window = true,
             new_state = fullscreen.new_state,
-            place = fullscreen.place,
+            geometry = fullscreen.geometry,
             neighbor = fullscreen.neighbor
         }
         local store = Store.new(Registry.new({ custom }))

@@ -127,14 +127,6 @@ function Store.workspace(store, layout_context, fallback_workspace)
 end
 
 ---@param ws LayoutWorkspaceState
----@return string
-function Store.layout_label(ws)
-    local layout = ws.active_layout
-    local label = util.ratio_label(layout:upper(), ws.layout_state[layout].ratio)
-    return ws.reflect and (label .. ":R") or label
-end
-
----@param ws LayoutWorkspaceState
 ---@param layout_context StoreContext
 ---@return string?
 function Store.active_id(ws, layout_context)

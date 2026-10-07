@@ -4,24 +4,40 @@ A pure lua plugin for dynamic per-workspace layouts in hyprland, with behaviour 
 
 ## Features
 
-- per workspace layouts
-- tall, wide, fullscreen and three-column layouts
-- focus, swap, reflect and grow/shrink for each layout
-- layouts persist on hyprland reload and machine restart
+- dynamic, per-workspace layouts
+- tall, wide, fullscreen, three-column and three-row layouts
+- directional and ordered navigation for each layout
+- switch focus, swap windows, reflect and grow/shrink for each layout
+- workspace/layout persistence
+
+## Anti-features
+
+We lose
+
+- click and drag window resize - `layout.grow` and `layout.shrink` provided as a poor substitute.
+- click and drag repositioning - `layout.swap_direction` for keyboard substitute
+
+Floating windows out of the layouts is a little painful, but resizing and moving works once they're floating.
 
 ## Configuration
+
+Basic config
 
 ```lua
 -- or wherever you've cloned it
 local root = os.getenv("HOME") .. "/projects/dynamic-layout.hypr" 
 package.path = root .. "/lua/?.lua;" .. package.path
 
--- call setup once and keep around for keybinds
+-- by default setup registers: fullscreen, tall, wide, 3col, 3row layouts
 local layout = require("dynamic_layout").setup() 
 
 -- use the newly registered layout
 hl.config({ general = { layout = "lua:dynamic" } })
+```
 
+Keybinds
+
+```lua
 -- useful keybinds
 hl.bind("SUPER + F1", hl.dsp.layout("fullscreen"))
 hl.bind("SUPER + F2", hl.dsp.layout("tall"))
@@ -34,88 +50,98 @@ hl.bind("SUPER + R", layout.reflect)
 hl.bind("SUPER + F10", layout.reset)
 hl.bind("SUPER + F11", layout.grow)
 hl.bind("SUPER + F12", layout.shrink)
-hl.bind("SUPER + left", function() layout.move_direction("l") end)
-hl.bind("SUPER + right", function() layout.move_direction("r") end)
-hl.bind("SUPER + up", function() layout.move_direction("u") end)
-hl.bind("SUPER + down", function() layout.move_direction("d") end)
+hl.bind("SUPER + left", function() layout.focus_direction("l") end)
+hl.bind("SUPER + right", function() layout.focus_direction("r") end)
+hl.bind("SUPER + up", function() layout.focus_direction("u") end)
+hl.bind("SUPER + down", function() layout.focus_direction("d") end)
 hl.bind("SUPER + SHIFT + left", function() layout.swap_direction("l") end)
 hl.bind("SUPER + SHIFT + right", function() layout.swap_direction("r") end)
 hl.bind("SUPER + SHIFT + up", function() layout.swap_direction("u") end)
 hl.bind("SUPER + SHIFT + down", function() layout.swap_direction("d") end)
 
+-- floating
+hl.bind("SUPER + T", hl.dsp.window.float({ action = "set" }))
+hl.bind("SUPER + mouse:273", hl.dsp.window.float({ action = "set" }))
+-- once floating, moving works fine
+hl.bind("SUPER + mouse:272", hl.dsp.window.drag(), { mouse = true })
+-- likewise resizing
+hl.bind("SUPER + SHIFT + mouse:273", hl.dsp.window.resize(), { mouse = true })
 ```
 
-See [examples/hyprland.lua](examples/hyprland.lua) for a more complete setup
-
-
-## Anti-features
-
-We lose 
-- click and drag window resize - `layout.grow` and `layout.shrink` provided as a poor substitute.
-- click and drag repositioning - `layout.swap_direction` for keyboard substitute
-
-Floating windows out of the layouts is a little painful, but resizing and moving works once they're floating. 
+Explicit strategy config:
 
 ```lua
--- floating
-hl.bind(mainMod .. " + T", hl.dsp.window.float({ action = "set" }))
-hl.bind(mainMod .. " + mouse:273", hl.dsp.window.float({ action = "set" }))
--- once floating, moving works fine
-hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag(), { mouse = true })
--- likewise resizing
-hl.bind(mainMod .. " + SHIFT + mouse:273", hl.dsp.window.resize(), { mouse = true })
+-- this is the equivalent of require("dynamic_layout").setup()
+local tall = require("dynamic_layout.strategies.tall")
+local three_col = require("dynamic_layout.strategies.three_col")
+local fullscreen = require("dynamic_layout.strategies.fullscreen")
+local mirror = require("dynamic_layout.strategies.mirror")
+
+                                                            -- xmonad equivalent
+local full = fullscreen("fullscreen")                       -- Full
+local tall = tall("tall", { nmaster = 1, ratio = 1 / 2 })   -- Tall 1 (3/100) (1/2)
+local wide = mirror(tall, "wide")                           -- Mirror tall
+local cols = three_col("3col", { ratio = 1 / 3 })           -- ThreeCol 1 (3/100) (1/3)
+local rows = mirror(cols, "3rows")                          -- Mirror cols
+
+local layout = require("dynamic_layout").setup({
+    resize_delta = 3 / 100,                                 -- delta, shared by every layout
+    strategies = { full, tall, wide, cols, rows },          -- order is important, determines cycle order
+})
 ```
 
+## Layout strategies
+
+Our built-in strategies:
+
+- `fullscreen` - simple fullscreen mode. hidden windows are rendered offscreen and switched in
+- `tall` - master window next to subordinates
+- `three_col` - master window with subordinates on both sides
+- `mirror` takes a layout and constructs a new layout with the main axis swapped (i.e. u/d <-> l/r)
+
+The engine provides 2 layout modifiers, applied on a per-workspace basis
+
+- `reflect` swaps the windows around the main axis (e.g. M|s -> s|M, or s1|M|s2 -> s2|M|s1)
+- `grow`/`shrink` adjusts the size of the master window
+
+### Custom strategies
+
+Documented in `LayoutStrategy` class. Main bits:
+
+- `new_state()` returns a fresh JSON-serializable table for each workspace, persistence and reset
+- `geometry(state, context, workspace)` returns a map of window ID to box in canonical (unreflected) orientation
+
+```lua
+local util = require("dynamic_layout.framework.util")
+
+-- Equal-height rows. Returning geometry is the whole strategy: the framework
+-- mirrors it for reflection (reversing the rows) and derives up/down navigation.
+---@type LayoutStrategy<table>
+local my_rows = {
+    name = "my_rows", -- name to invoke the layout with hl.dsp.layout("my_rows")
+    reflect_axis = "y", -- reflect swaps content around this axis
+    new_state = function() return {} end, -- no state needed in our local methods
+
+    -- geometry builds boxes for the framework to render/reflect/navigate/etc
+    geometry = function(state, context, workspace)
+        return util.stack_boxes(context, workspace.order, context.area, "vertical")
+    end,
+}
+
+-- use it when you setup dynamic_layout alongside other strategies
+local layout = require("dynamic_layout").setup({
+    strategies = { full, tall, wide, cols, rows, my_rows },
+})
+
+```
+
+## Tests
+
+Run `just test` check syntax, types via lsp and layout unit tests. Tests against a mocked out hyprland api
+
+Requires Lua 5.4 (`lua` and `luac`), `lua-language-server`, and Hyprland's Lua stubs configured in `./.luarc.json`
 
 ## State
 
 State is published as JSON in `$XDG_STATE_HOME/dynamic-layout.hypr/state.json`
 (or `$HOME/.local/state/dynamic-layout.hypr/state.json` when unset).
-
-The file contains `version: 1`, layout metadata, and the workspace map directly:
-
-```json
-{
-  "version": 1,
-  "layouts": { "tall": { "single_window": false } },
-  "workspaces": {
-    "id:7": {
-      "active_layout": "tall",
-      "reflect": false,
-      "layout_state": { "tall": { "ratio": 0.6 } },
-      "order": ["a", "b"],
-      "addresses": { "a": "abc", "b": "def" },
-      "selected_id": "a"
-    }
-  }
-}
-```
-
-Workspace state contains only data; strategy functions live in the registry.
-Strategy state must be JSON-serializable (finite numbers, strings, booleans,
-and tables with string keys or dense array indices; no functions or cycles).
-All strategy-owned fields persist unchanged, including navigation history.
-The loader trusts state generated by the current configuration.
-
-Startup clears saved addresses and selection and reconciles window order against
-live windows. Layout metadata is rebuilt from the registry rather than restored.
-Workspace keys are `id:<id>` or `name:<name>`. Consumers traverse `order` and look
-up each ID in `addresses`, skipping unavailable addresses. The active ratio is
-`layout_state[active_layout].ratio`; single-window mode is
-`layouts[active_layout].single_window`. Consumers format their own labels.
-
-The JSON library encodes empty tables as `[]`, including empty maps. Consumers
-should treat these as empty collections. Selection is omitted when absent.
-
-Writes are atomic and unchanged snapshots are skipped. Decode/load errors and unsupported versions are reported and ignored without
-partial restoration.
-
-
-## Tests
-
-Run `just test` to checks Lua syntax, runs Lua Language Server diagnostics,
-and runs the layout regression tests with a mocked Hyprland API.
-
-Requires Lua 5.4 (`lua` and `luac`), `lua-language-server`, and Hyprland's Lua
-stubs. The stub location defaults to `/usr/share/hypr/stubs` in `.luarc.json`;
-adjust it if your installation uses another location.

@@ -1,16 +1,13 @@
 local util = require("dynamic_layout.framework.util")
 
 ---@param index integer
----@param reflect boolean
----@return "l"|"r"
-local function side_for_index(index, reflect)
-    local side = index % 2 == 0 and "l" or "r"
-    if reflect then return side == "l" and "r" or "l" end
-    return side
+---@return LayoutDirection
+local function side_for_index(index)
+    return index % 2 == 0 and "l" or "r"
 end
 
--- The master spans every row, so entering it preserves the last side row.
----@param state ThreeColState
+-- The master spans the stack, so entering it preserves the last stack position.
+---@param state CenteredStackState
 ---@param ids string[]
 ---@param active_id string?
 local function on_focused_changed(state, ids, active_id)
@@ -18,97 +15,97 @@ local function on_focused_changed(state, ids, active_id)
     if index and index > 1 then state.focus_row = math.floor(index / 2) end
 end
 
----@class ThreeColState
+---@class CenteredStackState
 ---@field ratio     number
 ---@field focus_row number
 
----@type LayoutStrategy<ThreeColState>
-local strategy = {
-    name = "three_col",
+---@class CenteredStackOptions
+---@field ratio? number Master column's share of the area; defaults to 1/3.
 
-    new_state = function ()
-        return { ratio = 1 / 3, focus_row = 1 }
-    end,
+-- Master centered, remaining windows alternating into left and right columns.
+-- The only centered-stack implementation; mirror it for a horizontal variant.
+---@param name string
+---@param options? CenteredStackOptions
+---@return LayoutStrategy<CenteredStackState>
+return function (name, options)
+    assert(type(name) == "string" and name ~= "", "centered-stack layout requires a name")
+    options = options or {}
+    local ratio = options.ratio or (1 / 3)
+    assert(type(ratio) == "number" and ratio > 0 and ratio < 1, "ratio must be between 0 and 1")
 
-    neighbor = function (state, direction, workspace, focus)
-        local ids = workspace.order
-        local active_id = workspace.active_id
-        local index = util.index_of(ids, active_id)
-        if not index then return nil end
+    return {
+        name = name,
+        reflect_axis = "x",
 
-        if focus then on_focused_changed(state, ids, active_id) end
-        if index == 1 then
-            local neighbor
+        new_state = function ()
+            return { ratio = ratio, focus_row = 1 }
+        end,
+
+        neighbor = function (state, direction, workspace, purpose)
+            local ids = workspace.order
+            local active_id = workspace.active_id
+            local index = util.index_of(ids, active_id)
+            if not index then return nil end
+
+            if purpose == "focus" then on_focused_changed(state, ids, active_id) end
+            if index == 1 then
+                local neighbor
+                for i = 2, #ids do
+                    if side_for_index(i) == direction then
+                        neighbor = ids[i]
+                        if purpose ~= "focus" or math.floor(i / 2) >= state.focus_row then break end
+                    end
+                end
+                return neighbor
+            end
+
+            local side = side_for_index(index)
+            if direction == (side == "l" and "r" or "l") then return ids[1] end
+            if direction ~= "u" and direction ~= "d" then return nil end
+
+            local step = direction == "u" and -2 or 2
+            local neighbor_index = index + step
+            return neighbor_index >= 2 and ids[neighbor_index] or nil
+        end,
+
+        on_focused_changed = on_focused_changed,
+
+        geometry = function (state, context, workspace)
+            local ids = workspace.order
+            local master_id = ids[1]
+            if not master_id then return {} end
+            if #ids == 1 then return { [master_id] = context.area } end
+
+            local side_ratio = (1 - state.ratio) / 2
+            if #ids == 2 then
+                -- Share the whole area between the two occupied bands, keeping their
+                -- relative weights so grow/shrink still works without an empty third.
+                local master_ratio = state.ratio / (state.ratio + side_ratio)
+                return {
+                    [master_id] = context:split(context.area, "right", master_ratio),
+                    [ids[2]] = context:split(context.area, "left", 1 - master_ratio),
+                }
+            end
+
+            local first = context:split(context.area, "left", side_ratio)
+            local last = context:split(context.area, "right", side_ratio)
+            local middle = context:split(
+                context:split(context.area, "right", 1 - side_ratio), "left", state.ratio / (state.ratio + side_ratio)
+            )
+            local first_stack, last_stack = {}, {}
             for i = 2, #ids do
-                if side_for_index(i, workspace.reflect) == direction then
-                    neighbor = ids[i]
-                    if not focus or math.floor(i / 2) >= state.focus_row then break end
+                if (i % 2) == 0 then
+                    table.insert(first_stack, ids[i])
+                else
+                    table.insert(last_stack, ids[i])
                 end
             end
-            return neighbor
-        end
 
-        local side = side_for_index(index, workspace.reflect)
-        if direction == (side == "l" and "r" or "l") then return ids[1] end
-        if direction ~= "u" and direction ~= "d" then return nil end
-
-        local step = direction == "u" and -2 or 2
-        local neighbor_index = index + step
-        return neighbor_index >= 2 and ids[neighbor_index] or nil
-    end,
-
-    on_focused_changed = on_focused_changed,
-
-    place = function (state, layout_context, targets, workspace)
-        local ids = workspace.order
-        local master_id = ids[1]
-        local master = targets[master_id]
-        if not master then
-            return
-        end
-
-        if #ids == 1 then
-            master:place(layout_context.area)
-            return
-        end
-
-        local side_ratio = (1 - state.ratio) / 2
-        local reflect = workspace.reflect
-        if #ids == 2 then
-            -- Share the whole area between the two occupied columns, keeping their
-            -- relative weights so grow/shrink still works without an empty third.
-            local master_ratio = state.ratio / (state.ratio + side_ratio)
-            master:place(layout_context:split(layout_context.area, reflect and "left" or "right", master_ratio))
-            targets[ids[2]]:place(layout_context:split(layout_context.area, reflect and "right" or "left", 1 - master_ratio))
-            return
-        end
-
-        local left = layout_context:split(layout_context.area, "left", side_ratio)
-        local right = layout_context:split(layout_context.area, "right", side_ratio)
-        local middle = layout_context:split(
-            layout_context:split(layout_context.area, "right", 1 - side_ratio), "left", state.ratio / (state.ratio + side_ratio)
-        )
-        local left_stack = {}
-        local right_stack = {}
-
-        master:place(middle)
-
-        for i = 2, #ids do
-            local use_left = (i % 2) == 0
-            if reflect then
-                use_left = not use_left
-            end
-
-            if use_left then
-                table.insert(left_stack, ids[i])
-            else
-                table.insert(right_stack, ids[i])
-            end
-        end
-
-        util.place_stack(layout_context, targets, left_stack, left, "vertical")
-        util.place_stack(layout_context, targets, right_stack, right, "vertical")
-    end
-}
-
-return strategy
+            ---@type table<string, HL.Box>
+            local geometry = { [master_id] = middle }
+            for id, box in pairs(util.stack_boxes(context, first_stack, first, "vertical")) do geometry[id] = box end
+            for id, box in pairs(util.stack_boxes(context, last_stack, last, "vertical")) do geometry[id] = box end
+            return geometry
+        end,
+    }
+end

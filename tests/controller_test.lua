@@ -59,12 +59,12 @@ return {
       local layout = env.controller
       env.registered.dynamic.layout_msg(env.context, "three_col")
       fixture.focus(env, 4)
-      layout.move_direction("r")
+      layout.focus_direction("r")
       fixture.focus(env, 1)
       if command == "ratio 0.6" then layout.set_ratio(0.6)
       elseif command == "swapnext" then layout.swap_next()
       else layout[command]() end
-      layout.move_direction("r")
+      layout.focus_direction("r")
       local expected = ({ reflect = 4, reset = 3, swapnext = 2 })[command] or 5
       a.dispatch(env.dispatched[#env.dispatched], "focus", { window = "address:window" .. expected })
     end
@@ -76,7 +76,7 @@ return {
       env.registered.dynamic.layout_msg(env.context, "three_col")
       env.ws.reflect = reflected
       local function move(direction, expected)
-        env.controller.move_direction(direction)
+        env.controller.focus_direction(direction)
         a.dispatch(env.dispatched[#env.dispatched], "focus", { window = "address:window" .. expected })
         fixture.focus(env, expected)
         a.equal(table.concat(env.ws.order, ","), "1,2,3,4,5")
@@ -113,7 +113,7 @@ return {
           fixture.focus(env, index)
           for _, direction in ipairs({ "l", "r", "u", "d" }) do
             local before = #env.dispatched
-            layout.move_direction(direction)
+            layout.focus_direction(direction)
             local focus = env.dispatched[before + 1]
             a.equal(table.concat(env.ws.order, ","), "1,2,3")
             layout.swap_direction(direction)
@@ -138,15 +138,15 @@ return {
 
   ["directional focus falls back outside managed tiled windows"] = function()
     local env = engine()
-    env.controller.move_direction("l")
+    env.controller.focus_direction("l")
     a.dispatch(env.dispatched[#env.dispatched], "focus", { direction = "l" })
     fixture.focus(env, 1)
     env.active_window.floating = true
-    env.controller.move_direction("r")
+    env.controller.focus_direction("r")
     a.dispatch(env.dispatched[#env.dispatched], "focus", { direction = "r" })
     env.active_window.floating = false
     env.active_window.layout.name = "other"
-    env.controller.move_direction("u")
+    env.controller.focus_direction("u")
     a.dispatch(env.dispatched[#env.dispatched], "focus", { direction = "u" })
   end,
 

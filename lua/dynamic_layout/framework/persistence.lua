@@ -31,6 +31,17 @@ function M.load(store, path, report)
         assert(data.version == 1, "unsupported state version")
         for _, ws in pairs(data.workspaces) do
             ws.addresses, ws.selected_id = {}, nil
+            if not store.registry.by_name[ws.active_layout] then
+                ws.active_layout = store.registry.names[1]
+            end
+            for _, strategy in ipairs(store.registry.layouts) do
+                if ws.layout_state[strategy.name] == nil then
+                    ws.layout_state[strategy.name] = strategy.new_state()
+                end
+            end
+            for name in pairs(ws.layout_state) do
+                if not store.registry.by_name[name] then ws.layout_state[name] = nil end
+            end
         end
         return data.workspaces
     end)

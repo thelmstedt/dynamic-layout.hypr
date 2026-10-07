@@ -37,21 +37,37 @@ local function ensure_directory(directory)
     return directory
 end
 
+--- The built-in strategies, composed the way a user would in their own config:
+--- a configured master/stack and centered-stack, each paired with its mirror,
+--- plus fullscreen. `wide` and `three_row` are not separate implementations.
+---@return LayoutStrategy[]
+local function default_strategies()
+    local tall = require("dynamic_layout.strategies.tall")
+    local three_col = require("dynamic_layout.strategies.three_col")
+    local fullscreen = require("dynamic_layout.strategies.fullscreen")
+    local mirror = require("dynamic_layout.strategies.mirror")
+
+    local full = fullscreen("fullscreen")
+    local tall = tall("tall", { nmaster = 1, ratio = 1 / 2 })
+    local wide = mirror(tall, "wide")
+    local cols = three_col("3cols", { ratio = 1 / 3 })
+    local rows = mirror(cols, "3rows")
+    return { full, tall, wide, cols, rows }
+end
+
 --- Register the layout and return helpers for user-defined keybindings.
 --- Call once per configuration load, before selecting lua:dynamic.
+---@param options? { strategies?: LayoutStrategy[], resize_delta?: number }
 ---@return LayoutController
-function M.setup()
-    local registry = Registry.new({
-        (require("dynamic_layout.strategies.tall")),
-        (require("dynamic_layout.strategies.wide")),
-        (require("dynamic_layout.strategies.three_col")),
-        (require("dynamic_layout.strategies.fullscreen"))
-    })
+function M.setup(options)
+    options = options or {}
+    local registry = Registry.new(options.strategies or default_strategies())
 
     local directory = ensure_directory(state_directory())
 
     return Engine.register({
         registry = registry,
+        resize_delta = options.resize_delta,
         state_path = (directory .. "/state.json")
     })
 end
