@@ -37,9 +37,6 @@ local function ensure_directory(directory)
     return directory
 end
 
---- The built-in strategies, composed the way a user would in their own config:
---- a configured master/stack and centered-stack, each paired with its mirror,
---- plus fullscreen. `wide` and `three_row` are not separate implementations.
 ---@return LayoutStrategy[]
 local function default_strategies()
     local tall = require("dynamic_layout.strategies.tall")

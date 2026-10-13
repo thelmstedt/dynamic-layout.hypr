@@ -4,6 +4,7 @@ A pure lua plugin for dynamic per-workspace layouts in hyprland, with behaviour 
 
 ## Features
 
+- xmonad in hyprland
 - dynamic, per-workspace layouts
 - tall, wide, fullscreen, three-column and three-row layouts
 - directional and ordered navigation for each layout
@@ -136,6 +137,8 @@ local layout = require("dynamic_layout").setup({
 ```
 
 ## Tests
+
+Test deps fetched with `just init` via `luarocks`
 
 Run `just test` check syntax, types via lsp and layout unit tests. Tests against a mocked out hyprland api
 

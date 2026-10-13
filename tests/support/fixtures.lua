@@ -5,9 +5,16 @@ local Engine = require("dynamic_layout.framework.engine")
 local M = {}
 local sequence = 0
 
+-- A private temporary directory keeps each case's state files isolated without
+-- relying on an external runner to provision XDG_STATE_HOME. Created once, with
+-- the real os functions, before any case monkeypatches them.
+local state_root = os.tmpname()
+os.remove(state_root)
+assert(os.execute("mkdir -p '" .. state_root .. "'"))
+
 function M.path(name)
     sequence = sequence + 1
-    return assert(os.getenv("XDG_STATE_HOME"), "run tests/test.sh to isolate state") .. "/" .. sequence .. "-" .. name
+    return state_root .. "/" .. sequence .. "-" .. name
 end
 
 function M.registry()
@@ -40,7 +47,8 @@ function M.hyprland()
     local function dispatcher(kind)
         return function (options) return { kind = kind, options = options } end
     end
-    ---@diagnostic disable-next-line: missing-fields
+    -- The mock implements only the subset of the Hyprland API the tests drive.
+    ---@diagnostic disable: missing-fields, missing-return
     _G.hl = {
         layout = {
             register = function (name, definition)
@@ -62,6 +70,7 @@ function M.hyprland()
             window = { cycle_next = dispatcher("window.cycle_next") }
         }
     }
+    ---@diagnostic enable: missing-fields
     return env
 end
 

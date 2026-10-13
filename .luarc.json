@@ -1,10 +1,18 @@
 {
   "runtime": {
     "version": "Lua 5.4",
-    "path": ["lua/?.lua", "lua/?/init.lua"]
+    "path": ["lua/?.lua", "lua/?/init.lua", "?.lua"]
   },
   "workspace": {
-    "library": ["/usr/share/hypr/stubs"],
+    "library": [
+      "/usr/share/hypr/stubs",
+      "tests/types/busted",
+      "tests/types/luassert"
+    ],
+    "ignoreDir": ["tests/types"],
     "checkThirdParty": false
+  },
+  "diagnostics": {
+    "globals": ["hl"]
   }
 }

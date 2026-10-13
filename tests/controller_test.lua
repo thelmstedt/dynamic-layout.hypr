@@ -4,6 +4,7 @@ local fixture = require("tests.support.fixtures")
 local function engine(window_count)
   local env = fixture.engine(window_count)
   -- Refresh is the only layout message emitted by controller operations.
+  ---@param message table
   hl.dispatch = function(message)
     env.dispatched[#env.dispatched + 1] = message
     if message.kind == "layout" then
@@ -14,8 +15,10 @@ local function engine(window_count)
   return env
 end
 
-return {
-  ["controller changes are published before requesting refresh"] = function()
+describe("controller", function()
+  require("tests.support.sandbox")(before_each, after_each)
+
+  it("controller changes are published before requesting refresh", function()
     local env = fixture.engine()
     env.registered.dynamic.layout_msg(env.context, "tall")
     fixture.focus(env, 1)
@@ -30,9 +33,9 @@ return {
     end
     env.controller.shrink()
     a.equal(refreshes, 1)
-  end,
+  end)
 
-  ["refresh and recalculation preserve direct window reordering"] = function()
+  it("refresh and recalculation preserve direct window reordering", function()
     local env = engine()
     fixture.focus(env, 3)
     env.controller.promote()
@@ -40,9 +43,9 @@ return {
     env.registered.dynamic.recalculate(env.context)
     a.equal(table.concat(env.ws.order, ","), "3,1,2")
     a.box(env.boxes[3], { x = 0, y = 0, w = 100, h = 100 })
-  end,
+  end)
 
-  ["controller creates state for an empty focused workspace"] = function()
+  it("controller creates state for an empty focused workspace", function()
     local env = fixture.engine()
     env.focused_workspace = { id = 99 }
     env.active_window = nil
@@ -51,9 +54,9 @@ return {
     a.near(ws.layout_state.tall.ratio, 0.47)
     a.equal(env.ws.active_layout, "fullscreen")
     a.dispatch(env.dispatched[#env.dispatched], "layout", "_refresh")
-  end,
+  end)
 
-  ["three-column row survives resizing and reflection while reset restores the first row"] = function()
+  it("three-column row survives resizing and reflection while reset restores the first row", function()
     for _, command in ipairs({ "grow", "shrink", "ratio 0.6", "reflect", "reset", "swapnext" }) do
       local env = fixture.engine(5)
       local layout = env.controller
@@ -68,9 +71,9 @@ return {
       local expected = ({ reflect = 4, reset = 3, swapnext = 2 })[command] or 5
       a.dispatch(env.dispatched[#env.dispatched], "focus", { window = "address:window" .. expected })
     end
-  end,
+  end)
 
-  ["three-column focus preserves rows through the master in both directions"] = function()
+  it("three-column focus preserves rows through the master in both directions", function()
     for _, reflected in ipairs({ false, true }) do
       local env = fixture.engine(5)
       env.registered.dynamic.layout_msg(env.context, "three_col")
@@ -100,9 +103,9 @@ return {
       fixture.focus(env, 1)
       move(right, 5)
     end
-  end,
+  end)
 
-  ["directional focus follows swap neighbors without reordering"] = function()
+  it("directional focus follows swap neighbors without reordering", function()
     local env = engine()
     local layout = env.controller
     for _, name in ipairs({ "fullscreen", "tall", "wide", "three_col" }) do
@@ -134,9 +137,9 @@ return {
         end
       end
     end
-  end,
+  end)
 
-  ["directional focus falls back outside managed tiled windows"] = function()
+  it("directional focus falls back outside managed tiled windows", function()
     local env = engine()
     env.controller.focus_direction("l")
     a.dispatch(env.dispatched[#env.dispatched], "focus", { direction = "l" })
@@ -148,9 +151,9 @@ return {
     env.active_window.layout.name = "other"
     env.controller.focus_direction("u")
     a.dispatch(env.dispatched[#env.dispatched], "focus", { direction = "u" })
-  end,
+  end)
 
-  ["resize and reset callbacks operate on workspace settings"] = function()
+  it("resize and reset callbacks operate on workspace settings", function()
     local env = engine()
     local layout = env.controller
     layout.next_layout()
@@ -170,9 +173,9 @@ return {
     a.equal(env.ws.active_layout, "tall")
     layout.prev_layout()
     a.equal(env.ws.active_layout, "fullscreen")
-  end,
+  end)
 
-  ["ratio operations skip layouts without a ratio"] = function()
+  it("ratio operations skip layouts without a ratio", function()
     local env = engine()
     a.equal(env.ws.active_layout, "fullscreen")
     local dispatches = #env.dispatched
@@ -183,9 +186,9 @@ return {
     a.equal(env.ws.layout_state.fullscreen.ratio, nil)
     a.equal(#env.dispatched, dispatches)
     a.equal(a.read(env.state_path), settings)
-  end,
+  end)
 
-  ["reordering callbacks preserve distinct swap promote and demote behavior"] = function()
+  it("reordering callbacks preserve distinct swap promote and demote behavior", function()
     local env = engine()
     local layout = env.controller
     fixture.focus(env, 3)
@@ -199,9 +202,9 @@ return {
     a.equal(table.concat(env.ws.order, ","), "2,3,1")
     layout.swap_direction("r")
     a.equal(table.concat(env.ws.order, ","), "2,1,3")
-  end,
+  end)
 
-  ["callbacks dispatch without an active window on empty workspaces"] = function()
+  it("callbacks dispatch without an active window on empty workspaces", function()
     local env = engine(0)
     a.equal(#env.windows, 0)
     a.equal(#env.ws.order, 0)
@@ -222,14 +225,14 @@ return {
     for _, message in ipairs(env.dispatched) do
       a.dispatch(message, "layout", "_refresh")
     end
-  end,
+  end)
 
-  ["invalid ratios fail before dispatch"] = function()
+  it("invalid ratios fail before dispatch", function()
     local env = engine()
     local before = #env.dispatched
     for _, ratio in ipairs({ 0, 1, math.huge, 0 / 0 }) do
       a.equal(pcall(env.controller.set_ratio, ratio), false)
     end
     a.equal(#env.dispatched, before)
-  end,
-}
+  end)
+end)

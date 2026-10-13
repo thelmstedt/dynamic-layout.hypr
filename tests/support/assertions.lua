@@ -1,14 +1,17 @@
+-- Project-specific assertions layered on busted's luassert so call sites read
+-- in domain terms (boxes, dispatched messages) without a parallel engine.
+-- Required modules do not inherit the spec's injected `assert`, so pull in
+-- luassert directly.
+local assert = require("luassert")
+
 local M = {}
 
 function M.equal(actual, expected)
-    assert(actual == expected, string.format("expected %s, got %s", tostring(expected), tostring(actual)))
+    assert.are.equal(expected, actual)
 end
 
 function M.near(actual, expected)
-    assert(
-        math.abs(actual - expected) < 0.000001,
-        string.format("expected approximately %s, got %s", tostring(expected), tostring(actual))
-    )
+    assert.is.near(expected, actual, 0.000001)
 end
 
 function M.box(actual, expected)

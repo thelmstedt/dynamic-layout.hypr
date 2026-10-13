@@ -3,8 +3,10 @@ local fixture = require("tests.support.fixtures")
 local Store = require("dynamic_layout.framework.store")
 local Persistence = require("dynamic_layout.framework.persistence")
 
-return {
-    ["global resize step applies across layouts"] = function ()
+describe("engine", function()
+    require("tests.support.sandbox")(before_each, after_each)
+
+    it("global resize step applies across layouts", function()
         local mirror = require("dynamic_layout.strategies.mirror")
         local tiled = require("dynamic_layout.strategies.tall")("tall")
         local registry = require("dynamic_layout.framework.registry").new({
@@ -25,9 +27,9 @@ return {
         fixture.focus(env, 2)
         env.controller.grow()
         a.near(env.ws.layout_state.wide.ratio, 0.57)
-    end,
+    end)
 
-    ["invalid global resize steps fail before registration"] = function ()
+    it("invalid global resize steps fail before registration", function()
         for _, delta in ipairs({ 0, -0.01, math.huge, 0 / 0, "0.03", false }) do
             local env = fixture.hyprland()
             local ok, err = pcall(require("dynamic_layout.framework.engine").register, {
@@ -37,8 +39,8 @@ return {
             assert(tostring(err):find("resize_delta must be a positive finite number", 1, true))
             a.equal(next(env.registered), nil)
         end
-    end,
-    ["window reordering survives repeated config reloads with partial target lists"] = function ()
+    end)
+    it("window reordering survives repeated config reloads with partial target lists", function()
         local env = fixture.engine()
         fixture.focus(env, 3)
         env.controller.swap_with_master()
@@ -59,9 +61,9 @@ return {
             Persistence.load(restored, env.state_path, a.unexpected)
             a.equal(table.concat(restored.workspaces["id:10"].order, ","), "3,2,1")
         end
-    end,
+    end)
 
-    ["reload removes closed floating and moved windows from saved order"] = function ()
+    it("reload removes closed floating and moved windows from saved order", function()
         local env = fixture.engine(4)
         fixture.focus(env, 4)
         env.controller.promote()
@@ -74,9 +76,9 @@ return {
         local restored = Store.new(fixture.registry())
         Persistence.load(restored, env.state_path, a.unexpected)
         a.equal(table.concat(restored.workspaces["id:10"].order, ","), "4")
-    end,
+    end)
 
-    ["external messages select layouts but do not execute controller operations"] = function ()
+    it("external messages select layouts but do not execute controller operations", function()
         local env = fixture.engine()
         env.registered.dynamic.layout_msg(env.context, "tall")
         for _, message in ipairs({ "shrink", "ratio 0.7", "reflect", "reset", "swapnext", "focusactive" }) do
@@ -90,9 +92,9 @@ return {
         a.equal(type(env.registered.dynamic.layout_msg(env.context, "full")), "string")
         a.equal(env.registered.dynamic.layout_msg(env.context, "fullscreen"), true)
         a.equal(env.ws.active_layout, "fullscreen")
-    end,
+    end)
 
-    ["fullscreen retains selection when workspace loses focus"] = function ()
+    it("fullscreen retains selection when workspace loses focus", function()
         local env = fixture.engine()
         a.equal(env.ws.active_layout, "fullscreen")
         a.equal(env.ws.reflect, false)
@@ -102,9 +104,9 @@ return {
         env.boxes = {}
         env.registered.dynamic.recalculate(env.context)
         a.box(env.boxes[2], { x = 0, y = 0, w = 100, h = 100 })
-    end,
+    end)
 
-    ["focus hooks select fullscreen windows and ignore floating focus"] = function ()
+    it("focus hooks select fullscreen windows and ignore floating focus", function()
         local env = fixture.engine()
         fixture.focus(env, 3)
         a.equal(env.ws.selected_id, "3")
@@ -116,9 +118,9 @@ return {
         fixture.focus(env, 1)
         a.equal(env.ws.selected_id, "3")
         a.equal(#env.dispatched, before)
-    end,
+    end)
 
-    ["focus cycles in order with wrapping and falls back without an active window"] = function ()
+    it("focus cycles in order with wrapping and falls back without an active window", function()
         local env = fixture.engine()
         fixture.focus(env, 3)
         env.controller.cycle_focus(true)
@@ -130,44 +132,44 @@ return {
             env.controller.cycle_focus(next)
             a.dispatch(env.dispatched[#env.dispatched], "window.cycle_next", { next = next })
         end
-    end,
+    end)
 
-    ["promote preserves other order and demote moves master to end"] = function ()
+    it("promote preserves other order and demote moves master to end", function()
         local env = fixture.engine()
         fixture.focus(env, 3)
         env.controller.promote()
         a.equal(table.concat(env.ws.order, ","), "3,1,2")
         env.controller.demote()
         a.equal(table.concat(env.ws.order, ","), "1,2,3")
-    end,
+    end)
 
-    ["next and previous swaps wrap"] = function ()
+    it("next and previous swaps wrap", function()
         local env = fixture.engine()
         fixture.focus(env, 3)
         env.controller.swap_next()
         a.equal(table.concat(env.ws.order, ","), "3,2,1")
         env.controller.swap_prev()
         a.equal(table.concat(env.ws.order, ","), "1,2,3")
-    end,
+    end)
 
-    ["close clears addresses and selects previous at end"] = function ()
+    it("close clears addresses and selects previous at end", function()
         local env = fixture.engine()
         fixture.focus(env, 3)
         env.hooks["window.close"](env.windows[3])
         a.equal(env.ws.addresses["3"], nil)
         a.equal(env.ws.selected_id, "2")
         a.equal(a.read(env.state_path):find("window3", 1, true), nil)
-    end,
+    end)
 
-    ["moving a window clears source ordering and status"] = function ()
+    it("moving a window clears source ordering and status", function()
         local env = fixture.engine()
         env.hooks["window.move_to_workspace"](env.windows[2], { id = 12 })
         a.equal(table.concat(env.ws.order, ","), "1,3")
         a.equal(env.ws.addresses["2"], nil)
         a.equal(a.read(env.state_path):find("window2", 1, true), nil)
-    end,
+    end)
 
-    ["empty recalculation prunes floating moved and closed windows"] = function ()
+    it("empty recalculation prunes floating moved and closed windows", function()
         local env = fixture.engine()
         env.windows[1].floating = true
         env.windows[2].workspace = { id = 12 }
@@ -181,16 +183,16 @@ return {
         env.context.targets = { env.context.targets[1] }
         env.registered.dynamic.recalculate(env.context)
         a.equal(table.concat(env.ws.order, ","), "1")
-    end,
+    end)
 
-    ["workspace removal clears windows but retains preferences"] = function ()
+    it("workspace removal clears windows but retains preferences", function()
         local env = fixture.engine()
         env.hooks["workspace.removed"]({ id = 10 })
         a.equal(#env.ws.order, 0)
         a.equal(env.ws.active_layout, "fullscreen")
-    end,
+    end)
 
-    ["empty workspace preferences remain independent and persist"] = function ()
+    it("empty workspace preferences remain independent and persist", function()
         local env = fixture.engine()
         env.focused_workspace = { id = 11 }
         env.controller.reflect()
@@ -205,9 +207,9 @@ return {
         a.equal(restored.workspaces["id:11"].reflect, true)
         a.near(restored.workspaces["id:11"].layout_state.tall.ratio, 0.500)
         a.equal(Store.workspace(restored, env.empty), nil)
-    end,
+    end)
 
-    ["reset restores workspace modifiers without changing strategy or order"] = function ()
+    it("reset restores workspace modifiers without changing strategy or order", function()
         local env = fixture.engine()
         local other = assert(Store.workspace(env.store, env.empty, { id = 11 }))
         other.reflect = true
@@ -235,18 +237,18 @@ return {
         a.equal(restored.workspaces["id:10"].reflect, false)
         a.near(restored.workspaces["id:10"].layout_state.wide.ratio, 0.500)
         a.equal(restored.workspaces["id:10"].layout_state.three_col.ratio, 1 / 3)
-    end,
+    end)
 
-    ["current strategy names select the matching layout"] = function ()
+    it("current strategy names select the matching layout", function()
         local env = fixture.engine()
         for _, name in ipairs({ "tall", "wide", "three_col", "fullscreen" }) do
             a.equal(env.registered.dynamic.layout_msg(env.empty, name), true)
             a.equal(env.ws.active_layout, name)
         end
-    end,
+    end)
 
-    ["empty layout messages return an error without crashing"] = function ()
+    it("empty layout messages return an error without crashing", function()
         local env = fixture.engine()
         a.equal(type(env.registered.dynamic.layout_msg(env.context, "")), "string")
-    end
-}
+    end)
+end)

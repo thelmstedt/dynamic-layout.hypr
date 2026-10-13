@@ -34,8 +34,10 @@ local function geometry_of(strategy, state, context, ids, reflect)
     return geometry
 end
 
-return {
-    ["three-row transposes geometry and navigation including reflection and focus history"] = function ()
+describe("strategies", function()
+    require("tests.support.sandbox")(before_each, after_each)
+
+    it("three-row transposes geometry and navigation including reflection and focus history", function()
         local rows = mirror(three_col, "three_row")
         local directions = { l = "u", r = "d", u = "l", d = "r" }
         for _, reflect in ipairs({ false, true }) do
@@ -70,9 +72,9 @@ return {
                 a.near(area, count == 0 and 0 or 720000)
             end
         end
-    end,
+    end)
 
-    ["tall stacks children vertically on either side of the master"] = function ()
+    it("tall stacks children vertically on either side of the master", function()
         for _, reflect in ipairs({ false, true }) do
             for _, count in ipairs({ 1, 2, 3, 4 }) do
                 local ids = {}
@@ -92,9 +94,9 @@ return {
                 end
             end
         end
-    end,
+    end)
 
-    ["tall keeps the first nmaster windows in the master column"] = function ()
+    it("tall keeps the first nmaster windows in the master column", function()
         local tall2 = require("dynamic_layout.strategies.tall")("tall", { nmaster = 2 })
         -- With no more than nmaster windows, they fill the whole area, no stack.
         local two = geometry_of(tall2, tall2.new_state(), geometry_context(), { "1", "2" }, false)
@@ -107,9 +109,9 @@ return {
         a.box(three["1"], { x = 10, y = 20, w = 720, h = 300 })
         a.box(three["2"], { x = 10, y = 320, w = 720, h = 300 })
         a.box(three["3"], { x = 730, y = 20, w = 480, h = 600 })
-    end,
+    end)
 
-    ["wide arranges children horizontally above or below the master"] = function ()
+    it("wide arranges children horizontally above or below the master", function()
         for _, reflect in ipairs({ false, true }) do
             for _, count in ipairs({ 1, 2, 3, 4 }) do
                 local ids = {}
@@ -129,9 +131,9 @@ return {
                 end
             end
         end
-    end,
+    end)
 
-    ["grow and shrink resize the master regardless of focus"] = function ()
+    it("grow and shrink resize the master regardless of focus", function()
         local state = { ratio = 0.5 }
         util.resize_ratio(state, 0.03)
         a.near(state.ratio, 0.53)
@@ -139,22 +141,22 @@ return {
         a.near(state.ratio, 0.56)
         util.resize_ratio(state, -0.03)
         a.near(state.ratio, 0.53)
-    end,
+    end)
 
     -- tall defines no neighbor; the framework derives navigation from the boxes
     -- the strategy placed. At up to three windows this matches the former
     -- hand-written master/stack navigation exactly.
-    ["tall navigation follows master and stack geometry via the framework"] = function ()
+    it("tall navigation follows master and stack geometry via the framework", function()
         local ids = { "a", "b", "c" }
         local boxes = geometry_of(tall, { ratio = 0.5 }, geometry_context(), ids, false)
         a.equal(geometric.nearest(boxes, ids, "a", "r"), "b")
         a.equal(geometric.nearest(boxes, ids, "c", "u"), "b")
         a.equal(geometric.nearest(boxes, ids, "b", "l"), "a")
-    end,
+    end)
 
     -- Navigation is canonical: the strategy never consults reflect. The engine
     -- mirrors the direction instead, which the next test covers.
-    ["three-column neighbors follow master and side columns"] = function ()
+    it("three-column neighbors follow master and side columns", function()
         local ids = { "master", "left1", "right1", "left2", "right2" }
         a.equal(three_col.neighbor(three_col.new_state(), "l", { active_id = "master", order = ids, reflect = false }), "left1")
         a.equal(three_col.neighbor(three_col.new_state(), "r", { active_id = "master", order = ids, reflect = false }), "right1")
@@ -166,9 +168,9 @@ return {
         workspace.active_id = "right2"
         a.equal(three_col.neighbor(three_col.new_state(), "u", workspace), "right1")
         a.equal(three_col.neighbor(three_col.new_state(), "d", workspace), nil)
-    end,
+    end)
 
-    ["reflection mirrors navigation direction, not the strategy"] = function ()
+    it("reflection mirrors navigation direction, not the strategy", function()
         a.equal(geometric.flip("l", "x"), "r")
         a.equal(geometric.flip("r", "x"), "l")
         a.equal(geometric.flip("u", "x"), "u")
@@ -181,9 +183,9 @@ return {
             three_col.neighbor(three_col.new_state(), geometric.flip("l", "x"), { active_id = "master", order = ids, reflect = false }),
             "right1"
         )
-    end,
+    end)
 
-    ["three-column tracks its row independently of swaps and other workspaces"] = function ()
+    it("three-column tracks its row independently of swaps and other workspaces", function()
         local ids = { "master", "left1", "right1", "left2", "right2" }
         local state, other = three_col.new_state(), three_col.new_state()
         a.equal(three_col.neighbor(state, "r", { active_id = "left2", order = ids, reflect = false }, "focus"), "master")
@@ -197,9 +199,9 @@ return {
         three_col.neighbor(state, "r", { active_id = "left2", order = ids, reflect = false }, "focus")
         three_col.on_focused_changed(state, ids, "left1")
         a.equal(three_col.neighbor(state, "r", { active_id = "master", order = ids, reflect = false }, "focus"), "right1")
-    end,
+    end)
 
-    ["three-column fills the area as windows are added and removed"] = function ()
+    it("three-column fills the area as windows are added and removed", function()
         local layout_context = { area = { x = 10, y = 20, w = 1200, h = 600 } }
         function layout_context:split(area, side, ratio)
             assert(side == "left" or side == "right")
@@ -237,5 +239,5 @@ return {
                 end
             end
         end
-    end
-}
+    end)
+end)

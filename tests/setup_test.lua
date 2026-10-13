@@ -16,8 +16,10 @@ local function rows_strategy()
   }
 end
 
-return {
-  ["custom strategies run through setup and survive list changes"] = function()
+describe("setup", function()
+  require("tests.support.sandbox")(before_each, after_each)
+
+  it("custom strategies run through setup and survive list changes", function()
     local env = fixture.engine(3)
     local original_getenv = os.getenv
     local state_root = fixture.path("custom")
@@ -64,26 +66,26 @@ return {
     a.equal(type(saved.layout_state.fullscreen), "table")
     a.equal(saved.reflect, true)
     a.equal(#saved.order, 3)
-  end,
+  end)
 
-  ["reserved strategy names fail at registration"] = function()
+  it("reserved strategy names fail at registration", function()
     local rows = rows_strategy()
     rows.name = "_refresh"
     local ok, err = pcall(require("dynamic_layout").setup, { strategies = { rows } })
     a.equal(ok, false)
     assert(tostring(err):find("strategy name is reserved", 1, true))
-  end,
+  end)
 
-  ["import has no registration side effects"] = function()
+  it("import has no registration side effects", function()
     local env = fixture.hyprland()
     -- Execute the module freshly even when another case already required it.
     local module = dofile("lua/dynamic_layout.lua")
     a.equal(type(module.setup), "function")
     a.equal(next(env.registered), nil)
     a.equal(next(env.hooks), nil)
-  end,
+  end)
 
-  ["default paths work when Hyprland has reaped the mkdir child"] = function()
+  it("default paths work when Hyprland has reaped the mkdir child", function()
     local env = fixture.hyprland()
     local original_getenv = os.getenv
     local state_root = fixture.path("state")
@@ -120,6 +122,6 @@ return {
     a.equal(saved.selected_id, nil)
     a.equal(next(saved.addresses), nil)
     a.equal(#saved.order, 0)
-  end,
+  end)
 
-}
+end)

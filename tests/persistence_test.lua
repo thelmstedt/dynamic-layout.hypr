@@ -4,8 +4,10 @@ local Store = require("dynamic_layout.framework.store")
 local json = require("dynamic_layout.vendor.json")
 local Persistence = require("dynamic_layout.framework.persistence")
 
-return {
-    ["custom strategy fields round trip unchanged"] = function ()
+describe("persistence", function()
+    require("tests.support.sandbox")(before_each, after_each)
+
+    it("custom strategy fields round trip unchanged", function()
         local Registry = require("dynamic_layout.framework.registry")
         local fullscreen = require("dynamic_layout.strategies.fullscreen")("fullscreen")
         local registry = Registry.new({ {
@@ -25,9 +27,9 @@ return {
         a.equal(state.options.count, 4)
         a.equal(state.options.enabled, nil)
         a.equal(state.extra[2], "b")
-    end,
+    end)
 
-    ["decode errors include the parser diagnostic"] = function ()
+    it("decode errors include the parser diagnostic", function()
         local path = fixture.path("syntax")
         local content = '{"version":1,\n"workspaces": [}'
         a.write(path, content)
@@ -37,9 +39,9 @@ return {
         Persistence.load(Store.new(fixture.registry()), path, function(message) errors[#errors + 1] = message end)
         a.equal(#errors, 1)
         a.equal(errors[1], "read " .. path .. ": " .. diagnostic)
-    end,
+    end)
 
-    ["invalid documents report errors without replacing settings"] = function ()
+    it("invalid documents report errors without replacing settings", function()
         local store, ws = fixture.store()
         local path = fixture.path("invalid")
         for _, content in ipairs({ "{broken", "null", "42", '{"version":2,"workspaces":[]}', "id:7 TALL@0.6" }) do
@@ -49,9 +51,9 @@ return {
             a.equal(#errors, 1)
             a.equal(store.workspaces["id:7"], ws)
         end
-    end,
+    end)
 
-    ["malformed workspace abandons the entire snapshot"] = function ()
+    it("malformed workspace abandons the entire snapshot", function()
         local store, original = fixture.store()
         local data = json.decode(Persistence.snapshot(store))
         data.workspaces["id:8"] = false
@@ -62,15 +64,16 @@ return {
         a.equal(#errors, 1)
         a.equal(store.workspaces["id:7"], original)
         a.equal(store.workspaces["id:8"], nil)
-    end,
+    end)
 
-    ["JSON preserves escaped identifiers and strategy state"] = function ()
+    it("JSON preserves escaped identifiers and strategy state", function()
         local store, ws = fixture.store()
         local key = 'name:space "quote"\\slash\n'
         store.workspaces["id:7"] = nil
         store.workspaces[key] = ws
         ws.order = { 'id,"\\\n', "second" }
-        ws.layout_state.three_col.focus_row = 5
+        local three_col_state = ws.layout_state.three_col --[[@as CenteredStackState]]
+        three_col_state.focus_row = 5
         local path = fixture.path("escaped")
         a.write(path, Persistence.snapshot(store))
         local restored = Store.new(fixture.registry())
@@ -80,9 +83,9 @@ return {
         local state = restored.workspaces[key].layout_state.three_col --[[@as CenteredStackState]]
         a.equal(state.focus_row, 5)
         a.equal(json.decode(Persistence.snapshot(store)).workspaces[key].active_layout, ws.active_layout)
-    end,
+    end)
 
-    ["window order restores without session metadata"] = function ()
+    it("window order restores without session metadata", function()
         local store, ws = fixture.store()
         ws.order = { "b", "a", "id,with delimiter" }
         local path = fixture.path("settings")
@@ -95,9 +98,9 @@ return {
             a.equal(restored_ws.layout_state.tall.ratio, 0.61)
             a.equal(next(restored_ws.addresses), nil)
         end
-    end,
+    end)
 
-    ["layout names restore strategies with and without ratios"] = function ()
+    it("layout names restore strategies with and without ratios", function()
         local registry = fixture.registry()
         local path = fixture.path("labels")
         for _, strategy in ipairs(registry.layouts) do
@@ -116,9 +119,9 @@ return {
             a.equal(loaded.layout_state[strategy.name].ratio, state.ratio)
 
         end
-    end,
+    end)
 
-    ["settings retain ratios and order but discard window addresses"] = function ()
+    it("settings retain ratios and order but discard window addresses", function()
         local store = fixture.store()
         local path = fixture.path("settings")
         a.equal(Persistence.write(Persistence.writer(path, a.unexpected), Persistence.snapshot(store)), true)
@@ -133,9 +136,9 @@ return {
         a.equal(next(ws.addresses), nil)
         a.equal(ws.selected_id, nil)
         a.equal(table.concat(ws.order, ","), "a,b")
-    end,
+    end)
 
-    ["saving another workspace preserves unvisited settings"] = function ()
+    it("saving another workspace preserves unvisited settings", function()
         local store = fixture.store()
         local path = fixture.path("settings")
         local writer = Persistence.writer(path, a.unexpected)
@@ -147,9 +150,9 @@ return {
         local again = Store.new(fixture.registry())
         Persistence.load(again, path, a.unexpected)
         a.equal(again.workspaces["id:7"].layout_state.wide.ratio, 0.72)
-    end,
+    end)
 
-    ["snapshot exposes workspace data and layout metadata"] = function ()
+    it("snapshot exposes workspace data and layout metadata", function()
         local store, ws = fixture.store()
         local snapshot = json.decode(Persistence.snapshot(store))
         local saved = snapshot.workspaces["id:7"]
@@ -160,9 +163,9 @@ return {
         a.equal(saved.layout_state.tall.ratio, ws.layout_state.tall.ratio)
         a.equal(snapshot.layouts.fullscreen.single_window, true)
         a.equal(snapshot.layouts.tall.single_window, false)
-    end,
+    end)
 
-    ["single-window status follows the capability rather than the name"] = function ()
+    it("single-window status follows the capability rather than the name", function()
         local Registry = require("dynamic_layout.framework.registry")
         local fullscreen = require("dynamic_layout.strategies.fullscreen")("fullscreen")
         local custom = {
@@ -182,9 +185,9 @@ return {
         custom.name = "fullscreen"
         ws.layout_state.fullscreen = {}
         a.equal(json.decode(Persistence.snapshot(store)).layouts[custom.name].single_window, false)
-    end,
+    end)
 
-    ["unchanged snapshots do not rewrite files"] = function ()
+    it("unchanged snapshots do not rewrite files", function()
         local store = fixture.store()
         local writer = Persistence.writer(fixture.path("settings"), a.unexpected)
         local snapshot = Persistence.snapshot(store)
@@ -198,9 +201,9 @@ return {
         Persistence.write(writer, Persistence.snapshot(store))
         Persistence.write(writer, Persistence.snapshot(store))
         a.equal(calls, 0)
-    end,
+    end)
 
-    ["write failures report once and can recover"] = function ()
+    it("write failures report once and can recover", function()
         local errors = {}
         local writer = Persistence.writer(fixture.path("missing") .. "/settings", function (message)
             errors[#errors + 1] = message
@@ -212,9 +215,9 @@ return {
         writer.path = fixture.path("retry")
         a.equal(Persistence.write(writer, "snapshot"), true)
         a.equal(a.read(writer.path), "snapshot")
-    end,
+    end)
 
-    ["failed rename preserves the previous file"] = function ()
+    it("failed rename preserves the previous file", function()
         local path, errors = fixture.path("settings"), {}
         a.write(path, "previous")
         local writer = Persistence.writer(
@@ -230,5 +233,5 @@ return {
         a.equal(Persistence.write(writer, "replacement"), false)
         a.equal(a.read(path), "previous")
         a.equal(#errors, 1)
-    end
-}
+    end)
+end)
